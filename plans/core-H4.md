@@ -11,9 +11,9 @@
 - [x] Commit `core: bootstrap`.
 
 ## 1. Fixture repo (20 min) — MANUAL-FREE
-- [ ] `core/fixtures/repo_schemes/`: tiny Flask app with `app.py` (`run(input: str) -> str` + `GET /schemes?bio=`), `db.py` (sqlite, one deliberately unparameterised query behind a flag so the drifting run can leave it vulnerable), `utils/helpers.py`, `features/__init__.py`, `requirements.txt`, one existing test.
-- [ ] `core/fixtures/repo_schemes/SPATIAL_SOC.md` with the intent string from MVP.md §3.
-- [ ] Commit `core: fixture repo`.
+- [x] `core/fixtures/repo_schemes/`: tiny Flask app with `app.py` (`run(input: str) -> str` + `GET /schemes?bio=`), `db.py` (sqlite, one deliberately unparameterised query behind a flag so the drifting run can leave it vulnerable), `utils/helpers.py`, `features/__init__.py`, `requirements.txt`, one existing test.
+- [x] `core/fixtures/repo_schemes/SPATIAL_SOC.md` with the intent string from MVP.md §3.
+- [x] Commit `core: fixture repo`.
 
 ## 2. Static scene + layout (25 min)
 - [ ] `core/scene/layout.py`: walk `repo_schemes` with `ast`, build import/call graph in `networkx`, `spring_layout(dim=3, seed=7)`, scale to 0.8 m cube, lift scope nodes +0.1 m, emit `graph.nodes[].pos`, `edges`, `in_scope`.

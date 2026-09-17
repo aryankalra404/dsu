@@ -7,10 +7,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Core (person 1)
 - **Gate:** H4 in progress
-- **Done:** item 0 bootstrap — uv project, FastAPI `/health` + `/flags`, CORS, `.env` loading, `test_no_llm_in_engine.py` green (`core: bootstrap`)
-- **In progress:** item 1 — fixture repo
+- **Done:** item 0 bootstrap (`core: bootstrap`); item 1 fixture repo — `core/fixtures/repo_schemes/` Flask app, sqlite w/ unsafe-query flag, one passing test, `SPATIAL_SOC.md` intent (`core: fixture repo`)
+- **In progress:** item 2 — static scene + layout
 - **Blocked / manual pending:** Docker Desktop confirmed running; `OPENAI_API_KEY`/`OPENAI_MODEL` still needed in `.env` before item 6
-- **Next:** `plans/core-H4.md` items 1–4, publish replay server, post URL in team chat
+- **Next:** `plans/core-H4.md` items 2–4, publish replay server, post URL in team chat
 - **For Web:** —
 - **For VR:** —
 
