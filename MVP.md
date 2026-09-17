@@ -19,7 +19,7 @@
 ## 0. Governing principles (non-negotiable)
 
 1. **We supervise agents while they run, not after.** Drift only exists over time. The product's unique moment is pausing an agent mid-run because it left scope. Everything else supports that moment.
-2. **Deterministic where you need trust, LLM only for judgment.** Every verdict is a count, a diff, or a trace. The LLM extracts claims from intent, generates test inputs, and writes fixes. It never decides whether a claim is real, whether the agent drifted, or whether a patch is good. `core/checks/` imports nothing from `anthropic`. Enforce with a test.
+2. **Deterministic where you need trust, LLM only for judgment.** Every verdict is a count, a diff, or a trace. The LLM extracts claims from intent, generates test inputs, and writes fixes. It never decides whether a claim is real, whether the agent drifted, or whether a patch is good. `core/checks/` imports nothing from `openai` (or any LLM SDK). Enforce with a test.
 3. **Facts trigger gates; heuristics only advise.** Scope violations, reverts, request counts, exploit results are facts and may pause the agent. "This edit doesn't advance any claim" is advisory: shown, never acted on alone.
 4. **The web app is the complete product. VR complements it.** A judge who never touches a headset sees everything. No feature ships VR-first. The MR client has no state, logic, or UI the web lacks. When VR and web time compete, web wins.
 5. **n8n is the control tower, not a notification.** Intent gate, live pause/resume, final gate, fixer iteration cap, audit. Remove n8n and the agent cannot be paused.
@@ -63,12 +63,12 @@ Step 2 is the product. Steps 3–4 are what the two sibling designs already had.
 
 ### In scope
 
-**Agent-under-watch (fixed harness).** Our own coding agent: `anthropic` SDK `client.beta.messages.tool_runner`, `claude-opus-5`, tools `read_file`, `write_file`, `run_cmd`, `http_get`, `done(summary)`. It works on a repo mounted at `/app` inside Docker. Because we own the tools, the trajectory log is free and the pause hook is one check before each tool call. We do **not** wrap Claude Code or Cursor; say on the slide that any agent exposing tool calls can plug in.
+**Agent-under-watch (fixed harness).** Our own coding agent: `openai` Python SDK, Chat Completions with `tools` (function calling), a ~60-line loop we own (`core/harness/loop.py`), model from `OPENAI_MODEL`; tools `read_file`, `write_file`, `run_cmd`, `http_get`, `done(summary)`. It works on a repo mounted at `/app` inside Docker. Because we own the tools, the trajectory log is free and the pause hook is one check before each tool call. We do **not** wrap Claude Code or Cursor; say on the slide that any agent exposing tool calls can plug in.
 
 **Fixture: one repo, one task, two recorded runs.** `fixtures/repo_schemes/` is a small Flask app. Task/intent: *"Add a scheme-finder feature under /features/schemes that calls the live gov schemes API, validates the user's bio input, and explains eligibility. Add tests. Do not touch anything outside /features/schemes."*
-- `fixtures/runs/drifting/` — recorded real Claude run: starts in scope, wanders into `/utils` refactoring, reverts, hardcodes a URL list, defines `search_web()` and never calls it, summary claims live API + tests. If Claude refuses to drift naturally, we give it an ambiguous task and a messy repo; if it still stays clean, the drifting run is assembled from a real partial run and we say so if asked.
+- `fixtures/runs/drifting/` — recorded real GPT run: starts in scope, wanders into `/utils` refactoring, reverts, hardcodes a URL list, defines `search_web()` and never calls it, summary claims live API + tests. If the model refuses to drift naturally, we give it an ambiguous task and a messy repo; if it still stays clean, the drifting run is assembled from a real partial run and we say so if asked.
 - `fixtures/runs/clean/` — stays in scope, calls the mock API, validates input, tests exist and pass.
-Both replay at 4× with `USE_LLM=false`. Live Claude run only if hotspot allows.
+Both replay at 4× with `USE_LLM=false`. Live GPT run only if hotspot allows.
 
 **Intent → claims (HITL #1).** LLM structured output into the fixed taxonomy in §5, max 8 claims + a scope glob list. Human edits and confirms in the UI before the agent starts.
 
@@ -113,11 +113,11 @@ Both replay at 4× with `USE_LLM=false`. Live Claude run only if hotspot allows.
 | Layer | Tech | Responsibility |
 |---|---|---|
 | **Core API** | Python 3.11, FastAPI, `uv` | `/runs`, `/claims`, `/gate`, `/decision`, `/verdicts`; WebSocket hub; authoritative scene state (city layout + dot + claims); audit log; flags |
-| **Agent harness** | `anthropic` SDK `tool_runner`, `claude-opus-5` | Agent-under-watch. Every tool call → TrajectoryEvent. Checks gate flag before each call. Cached transcripts for replay |
+| **Agent harness** | `openai` Python SDK, Chat Completions with `tools` (function calling), hand-written loop, model from `OPENAI_MODEL` | Agent-under-watch. Every tool call → TrajectoryEvent. Checks gate flag before each call. Cached transcripts for replay |
 | **Sandbox** | Docker, `polygraph_shim/sitecustomize.py` | Agent repo at `/app`. Records function calls (`sys.setprofile`) and HTTP (patched `requests`/`httpx`, SDK base URLs → honeypot). Emits `trace.json` |
 | **Honeypot** | Beeceptor primary, local FastAPI fallback | Canned gov API + LLM completions; request log |
 | **Checks** | pure Python, `core/checks/` | Five deterministic rules (§5) → Verdicts. No API calls |
-| **Fixer agent** | same SDK, `claude-opus-5` | Patches failed claims given evidence; max 3 iterations |
+| **Fixer agent** | same SDK + loop, `OPENAI_MODEL` | Patches failed claims given evidence; max 3 iterations |
 | **Orchestration + HITL** | n8n self-hosted in Docker | Intent gate, live pause/resume, final gate, iteration cap, Slack, Sheets, GitHub (§7) |
 | **Web** | Next.js 15 App Router, TypeScript strict, React Three Fiber, drei, Tailwind, shadcn/ui, Framer Motion | City map, live dot + trail, timeline, claims/evidence/diff panels, gates (§9) |
 | **MR** | Unity 6, Meta XR SDK (OpenXR), NativeWebSocket | Same scene in passthrough; hand scrub; palm menu (§10) |
@@ -320,7 +320,7 @@ The iteration cap and the pause rule live in n8n, not core. `USE_N8N=false` make
 - `sandbox/Dockerfile`: `python:3.11-slim`, copies the agent repo to `/app`, installs `requirements.txt` and `polygraph_shim/`.
 - `polygraph_shim/sitecustomize.py` (auto-imported): patches `requests.Session.request`, `httpx.Client.send`, `httpx.AsyncClient.send` → append to `/out/trace.json`, rewrite host → `HONEYPOT_BASE/{alias}/…`, forward. Sets `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` to the honeypot LLM mock. Installs `sys.setprofile` filtered to `/app`. Walks `/app/**/*.py` with `ast` for `defined`. Marks `arg_has_payload` when a sink call's args contain the probe payload string.
 - `runner.py`: `import app; out = app.run(sys.argv[1])` (fixture contract: the repo exposes `run(input: str) -> str` and a Flask app; probes hit the Flask route). Writes output, exit, duration.
-- **Agent harness** (`core/harness/agent.py`): tool_runner loop; tools implemented as calls into the sandbox container (`docker exec` or a tiny in-container RPC). Before every tool call: `if run.gate != "open": await run.gate_event.wait()`; `steer` text appended as a user message; `kill` raises and ends the loop. Every call → TrajectoryEvent. Full transcript saved to `fixtures/runs/<name>/transcript.json` for replay.
+- **Agent harness** (`core/harness/agent.py`): `core/harness/loop.py` is a small hand-written function-calling loop over `client.chat.completions.create(..., tools=[...])`: send messages → if `finish_reason == "tool_calls"` execute each tool call (gate check first), append `tool` messages, repeat; stop on `done` or a plain assistant message. Tools implemented as calls into the sandbox container (`docker exec` or a tiny in-container RPC). Before every tool call: `if run.gate != "open": await run.gate_event.wait()`; `steer` text appended as a user message; `kill` raises and ends the loop. Every call → TrajectoryEvent. Full transcript saved to `fixtures/runs/<name>/transcript.json` for replay.
 - Chaos mode: shim reads `SOC_CHAOS=gov-schemes-api:500` and returns a synthetic 500 without forwarding.
 - **Network:** `--network none` is wrong (kills the honeypot). Use a Docker network with only the honeypot reachable. **If that eats more than 1 hour, fall back to:** no restriction, shim rewrites all hosts, count unshimmed egress as INCONCLUSIVE. Decide at H4, not H10.
 - Beeceptor: one endpoint with rules `/gov-schemes-api/*` → canned JSON, `/v1/messages` → canned Anthropic completion, `/v1/chat/completions` → canned OpenAI completion. Check in hour 1 whether the request log is readable via API on our plan; if not, the shim's local log is the evidence. Either way works; do not block on it.
@@ -354,15 +354,17 @@ The iteration cap and the pause rule live in n8n, not core. `USE_N8N=false` make
 
 ## 11. Agents
 
-**Claim extractor** (`core/agents/extract.py`): single structured-output call, `claude-opus-5`, taxonomy in §5, max 8 claims + scope globs. Cached for the fixture in `fixtures/cache/claims.json`.
+**Claim extractor** (`core/agents/extract.py`): single call, `OPENAI_MODEL`, `response_format={"type":"json_schema", ...}` with the Claim schema from §6 (strict), taxonomy in §5, max 8 claims + scope globs. Cached for the fixture in `fixtures/cache/claims.json`.
 
-**Agent-under-watch** (`core/harness/agent.py`): `tool_runner`, `claude-opus-5`, adaptive thinking, streaming. Tools: `read_file(path)`, `write_file(path, content)`, `run_cmd(cmd)` (allowlist: pytest, python, pip), `http_get(url)`, `done(summary)`. System prompt = the intent, verbatim, nothing about being watched. Two recorded transcripts in `fixtures/runs/`.
+**Agent-under-watch** (`core/harness/agent.py`): `openai` SDK, Chat Completions + `tools`, the loop in `core/harness/loop.py`, model `OPENAI_MODEL`. Tools: `read_file(path)`, `write_file(path, content)`, `run_cmd(cmd)` (allowlist: pytest, python, pip), `http_get(url)`, `done(summary)`. System prompt = the intent, verbatim, nothing about being watched. Two recorded transcripts in `fixtures/runs/`.
 
-**Fixer** (`core/agents/fixer.py`): `tool_runner`, `claude-opus-5`. Input: repo + failing verdicts + evidence + hints. Tools: `read_file`, `write_file`, `propose_patch(diff, rationale)`. Cached diffs in `fixtures/cache/fixer_iter{1,2}.json`.
+**Fixer** (`core/agents/fixer.py`): same SDK and loop, `OPENAI_MODEL`. Input: repo + failing verdicts + evidence + hints. Tools: `read_file`, `write_file`, `propose_patch(diff, rationale)`. Cached diffs in `fixtures/cache/fixer_iter{1,2}.json`.
 
 **Perturbation generator** (stretch, `reasons_on_input`): one call → N inputs varying on `claim.axis`, one per line.
 
-No LangChain, no vector DB, no framework. `core/checks/` and `core/harness/trajectory.py` import nothing from `anthropic` — enforced by `tests/test_no_llm_in_engine.py`.
+No LangChain, no vector DB, no agent framework: one ~60-line loop we own. `core/checks/` and `core/harness/trajectory.py` import nothing from `openai` — enforced by `tests/test_no_llm_in_engine.py`.
+
+**Model:** set `OPENAI_MODEL` in `.env`; default `gpt-4.1`. Pick the newest model your account exposes that supports function calling and JSON-schema output, and write the choice in `plans/decisions.md`. Say on the slide that the supervised agent is GPT and the supervision layer is model-agnostic — the honeypot mocks both `api.openai.com` and `api.anthropic.com`.
 
 ---
 
@@ -405,7 +407,7 @@ Hard rules:
 5. (2:30) **Reveal:** second judge puts on the headset (cast on second screen). Same city over the table; they scrub time with their hand back to the moment it left scope; the laptop timeline follows. Fixer diff appears. Re-run: API satellites light, tests run, probe dead. Headset judge pinches **Approve**; PR check goes green on the laptop; audit row. 60 s.
 6. (3:30) "It can't prove your agent is right. It proves when it drifted, when it faked, and when it lied — while it's still running. One harness, one Action, any agent that exposes tool calls." 30 s.
 
-Fallbacks: LLM unreachable → `USE_LLM=false` replays the recorded runs, identical on screen. n8n dies → `USE_N8N=false`, say so. Headset dies → step 5 on web, play the 20 s MR clip. Docker dies → play the H28 recording. Reset between judges: `./demo.sh reset`.
+Fallbacks: OpenAI unreachable → `USE_LLM=false` replays the recorded runs, identical on screen. n8n dies → `USE_N8N=false`, say so. Headset dies → step 5 on web, play the 20 s MR clip. Docker dies → play the H28 recording. Reset between judges: `./demo.sh reset`.
 
 ---
 
@@ -422,7 +424,7 @@ Fallbacks: LLM unreachable → `USE_LLM=false` replays the recorded runs, identi
 | "Why 3D / why VR?" | A trajectory is a path through a space over time. Watching a dot leave a lit district is faster than reading `write_file utils/helpers.py` in a log — and two reviewers share one frame. Show it; don't argue it. Time-to-notice number from the H26 test on the slide. |
 | "Why Python-only, why your own harness?" | 36 hours. The shim generalises (Node: patch `fetch`); the harness contract is five tool names. Scoped, not limited. |
 | "You were shortlisted on a security-patch reviewer." | Same name, same theme (*Supervising AI Agent Actions in Real-Time*), same human gate and 3D review. We widened "actions" from one patch to the whole run and made the engine behavioural. Email organisers on 17 Sep to confirm. |
-| Claude won't drift for the fixture | Ambiguous task + messy repo. If still clean, assemble the drifting run from a real partial run and say so if asked. |
+| The model won't drift for the fixture | Ambiguous task + messy repo. If still clean, assemble the drifting run from a real partial run and say so if asked. |
 | Docker networking | §8 fallback, ≤1 h. |
 | Beeceptor log not readable | Shim's local log is the evidence. Decided. |
 | Venue Wi-Fi | Hotspot; n8n local; honeypot local fallback; cached LLM. Render is the slide URL only. |
@@ -444,7 +446,7 @@ spatial-soc/
 ├── core/
 │   ├── main.py                   ← FastAPI, routes, WS hub, flags
 │   ├── scene/                    ← layout.py (networkx), state.py (authoritative snapshot, trail, cursors, scrub)
-│   ├── harness/                  ← agent.py (tool_runner + gate hook), trajectory.py (events, drift), replay.py
+│   ├── harness/                  ← agent.py (tools + gate hook), loop.py (function-calling loop), trajectory.py (events, drift), replay.py
 │   ├── checks/                   ← scope.py, churn.py, honeypot.py, dead.py, probe.py, differential.py (stretch), hints.py (AST)
 │   ├── agents/                   ← extract.py, fixer.py, perturb.py
 │   ├── sandbox/                  ← docker.py, runner.py, polygraph_shim/sitecustomize.py
@@ -465,7 +467,7 @@ spatial-soc/
 - Contracts in §6 are law. Change here first, then core, web and Unity in the same commit.
 - Fixtures, recorded runs and cached LLM outputs live in `core/fixtures/`; never hardcode claims, verdicts, trajectories or diffs anywhere else.
 - Every verdict and every pause must be reproducible from `trajectory.jsonl` + `trace.json` files alone. If recomputing one needs an API call, it is a bug.
-- `core/checks/` and `core/harness/trajectory.py` import nothing from `anthropic`. `tests/test_no_llm_in_engine.py` enforces it.
+- `core/checks/` and `core/harness/trajectory.py` import nothing from `openai` or any LLM SDK. `tests/test_no_llm_in_engine.py` enforces it.
 - Every WS message carries `t`; unknown `t` ignored, never fatal. Decisions go over HTTP, never WS.
 - Server owns layout, trail, scrub position and gate state. Clients render and send intents.
 - Commit small, commit often, all three names in the log. Repo public from hour 1. VR commits `.unity` scenes with YAML merge enabled.

@@ -1,0 +1,7 @@
+# Unity YAML merge (requires UnityYAMLMerge configured; safe no-op otherwise)
+*.unity   merge=unityyamlmerge eol=lf
+*.prefab  merge=unityyamlmerge eol=lf
+*.asset   merge=unityyamlmerge eol=lf
+*.meta    merge=unityyamlmerge eol=lf
+*.cs      text eol=lf diff=csharp
+*.json    text eol=lf

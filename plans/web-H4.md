@@ -2,7 +2,7 @@
 
 **Gate:** the city renders from `GET /runs/demo/scene` and the dot moves on `traj_event` from Core's replay server.
 **Read first:** `CLAUDE.md`, `web/CLAUDE.md`, `MVP.md` §6, §9, §13.
-**You share Account 2 with VR.** Work in plan items; after each one update `STATUS.md`, `/clear`, and hand the account over (say so in chat). While you don't have it, do `plans/ops.md`.
+**You are person 2; do this plan before `plans/vr-H4.md`.** `/clear` when you switch to VR.
 **Do not wait for Core.** Until the replay server is up (target: minute 60), use `web/fixtures/scene.json` and `web/fixtures/events.jsonl` that you write from the §6 contract; swap the URL later.
 
 ## 0. Bootstrap (20 min)

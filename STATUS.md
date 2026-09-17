@@ -5,7 +5,7 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ---
 
-## Core (laptop B)
+## Core (person 1)
 - **Gate:** H4 not started
 - **Done:** scaffold only
 - **In progress:** —
@@ -14,7 +14,7 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **For Web:** —
 - **For VR:** —
 
-## Web (laptop C)
+## Web (person 2 — do first each gate)
 - **Gate:** H4 not started
 - **Done:** scaffold only
 - **In progress:** —
@@ -23,24 +23,24 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **For Core:** —
 - **For VR:** —
 
-## VR (laptop A)
+## VR (person 2 — after the web target; person 3 builds/tests on device)
 - **Gate:** H4 not started
-- **Done:** scaffold only
+- **Done:** Unity project cleaned and moved to `vr/` (Quest passthrough + hands rig kept, circuit assets removed, Socket.IO → NativeWebSocket, MCP bridge configured)
 - **In progress:** —
-- **Blocked / manual pending:** Unity 6 LTS + Android support installed? Meta XR SDK imported? Headset model confirmed? Dev mode + adb?
+- **Blocked / manual pending:** scene strip (For Ops above); headset model confirmed?; Dev mode + adb on person 3's laptop?
 - **Next:** `plans/vr-H4.md` items 0–2; first device build last
 - **For Core:** need laptop LAN IP for the headset once the hotspot is up
 - **For Web:** —
 
-## Ops (rotating hat — whoever of Web/VR is not holding Account 2)
+## Ops (person 3, no Claude)
 - **Currently wearing it:** —
 - **Done:** —
 - **In progress:** —
 - **Blocked / needs a decision:** —
 - **Next:** `plans/ops.md` in order
 
-## Account 2 (shared Web/VR) — who has it now
-- **Holder:** — · **since:** — · **hands off at:** — (say it in team chat too)
+## For Ops — manual steps waiting (person 2 writes click-by-click lists here; person 3 ticks them)
+- [ ] **Strip the Unity scene** — see `plans/vr-H4.md` item 0 for the exact list of objects to delete, then Save As `Assets/SpatialSOC/Scene/SpatialSOC.unity`, set as scene 0, Project Setup Tool → Fix All, commit `vr: clean scene`.
 
 ---
 

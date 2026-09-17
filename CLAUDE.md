@@ -14,12 +14,16 @@
 | `MANUAL_SETUP.md` | Human-only setup checklist (installs, accounts, keys, headset). | When a manual step comes up — check if it's already listed. |
 | `.env.example` | Every environment variable with a comment. Real values live in `.env` (gitignored). | When you need a secret or config value. |
 | `README.md` | For judges and GitHub visitors. Written at H28. | Not before H20. |
+| `.mcp.json` (root and `vr/`) | Unity MCP bridge config with absolute paths for the VR laptop. | Only person 2's machine; others ignore it. |
 
 **Session start ritual:** read `CLAUDE.md` → `STATUS.md` → your `<owner>/CLAUDE.md` → your current `plans/` file → the `MVP.md` sections it cites. Then plan or execute. Nothing else is required reading.
 
 Read `MVP.md` before doing anything. It is the single source of truth. §6 contracts are law. §3 OUT list wins on scope. `DESIGN.md` is the visual contract: Web defines it, VR mirrors it; neither client invents a colour, size, label or animation that isn't in it.
-Three people, three laptops, **two Claude Pro accounts**. **Core** owns `core/`, `sandbox/`, `n8n/`, `.github/`; **Web** owns `web/`; **VR** owns `vr/`; **Ops** is a rotating hat (n8n canvas clicks, accounts, keys, research, slides, recordings, the stopwatch test) worn by whichever of Web/VR is not currently holding the shared account — see `plans/ops.md`.
-Account 1 = Core laptop, always. Account 2 = shared by Web and VR laptops (same login, shared rate limit). When Account 2 is rate-limited or in use, the other person does Ops from `plans/ops.md` — never sit idle, never start a second heavy session on the same account.
+Three people, **two Claude seats**. **Core** owns `core/`, `sandbox/`, `n8n/`, `.github/`; **Web+VR** is one person owning `web/`, `vr/` and `DESIGN.md`; **Ops** is the third person with no Claude — see `plans/ops.md`.
+- **Person 1 (Claude + VS Code): Core.** Full time.
+- **Person 2 (Claude + VS Code + Unity MCP): Web first, then VR.** Each gate: hit the web target, then mirror it in Unity. Web is the product; VR is the reveal and may lag 2–3 h. If overloaded at H12, VR drops to view-only (MVP.md §3 cut order).
+- **Person 3 (no Claude): Ops + hands.** n8n canvas, accounts, keys, deploys, slides, recordings, the stopwatch test — and all Unity editor GUI steps, headset pairing, adb, APK builds and casting. Person 3 has Unity installed and pulls person 2's commits to build and test on device.
+Manual Unity steps: Claude on person 2's machine writes the click-by-click list into `STATUS.md` → **For Ops**; person 3 executes it and reports back. Person 2 does not stop coding to click.
 Do not edit another owner's directory unless the task explicitly says so. Shared files (`MVP.md`, `docker-compose.yml`, `demo.sh`, this file) are edited only when the human confirms.
 
 ## Token discipline (two accounts for three people — this matters)
@@ -27,8 +31,8 @@ Do not edit another owner's directory unless the task explicitly says so. Shared
 - `/clear` between plan items. Do not carry a 100k-token context into a new task.
 - Ask for a file's specific lines/sections, not the whole file, when it is large (`MVP.md` is large — read the cited sections).
 - Generate code in one pass per file; avoid rewrite-the-whole-file loops. Prefer targeted edits.
-- If you are the shared account (Web or VR): when a plan item ends, update `STATUS.md`, `/clear`, and tell the human so the other person can take the account.
-- Ops work needs almost no Claude: the human clicks, Claude answers one-line questions. Do Ops from a fresh short session, not inside a build session.
+- Person 2 alternates web and VR plan items; `/clear` between them so Unity context and Next.js context never mix.
+- Ops has no Claude. If person 3 needs a one-line answer, person 1 or 2 asks it between items; nobody opens a third session.
 
 ## How to work
 
@@ -51,11 +55,11 @@ When you hit one of these:
 - Never pick a worse design to avoid a manual step (e.g. skipping the honeypot because Beeceptor needs signup, or polling instead of a webhook because Slack needs a token). Ask, and continue on something else meanwhile.
 - Keep `MANUAL_SETUP.md` current: if you discover a new manual step, append it there.
 
-Secrets are read only from environment variables loaded from `.env` (gitignored). `ANTHROPIC_API_KEY` may be absent if the machine used `ant auth login`; check `ant auth status` before asking for a key.
+Secrets are read only from environment variables loaded from `.env` (gitignored). The LLM calls use the `openai` SDK with `OPENAI_API_KEY` and `OPENAI_MODEL` from `.env`. Claude Pro is the tool we build with, not the runtime model. Do not add the `anthropic` SDK.
 
 ## Stack (do not substitute)
 
-Core: Python 3.11, FastAPI, `uv`, `ruff`, `anthropic` SDK (`client.beta.messages.tool_runner`, model `claude-opus-5`), `networkx`, Docker, SQLite, n8n self-hosted.
+Core: Python 3.11, FastAPI, `uv`, `ruff`, `openai` Python SDK (Chat Completions + `tools`, hand-written loop in `core/harness/loop.py`, model from `OPENAI_MODEL`), `networkx`, Docker, SQLite, n8n self-hosted.
 Web: Next.js 15 App Router, TypeScript strict, pnpm, React Three Fiber + drei, Tailwind, shadcn/ui, Framer Motion, native WebSocket.
 VR: Unity 6 LTS, C#, Meta XR SDK via OpenXR, NativeWebSocket, Quest 3.
 Not used: LangChain, vector DBs, Socket.IO, WebXR, Unity Netcode, Postgres, ORMs.

@@ -5,9 +5,9 @@
 **Order matters.** Items 1–4 unblock Web and VR; ship them in the first 60–75 minutes even if rough.
 
 ## 0. Bootstrap (15 min)
-- [ ] `uv init core --python 3.11`; deps: `fastapi uvicorn[standard] networkx pydantic anthropic python-dotenv`; dev: `pytest ruff httpx websockets`.
+- [ ] `uv init core --python 3.11`; deps: `fastapi uvicorn[standard] networkx pydantic openai python-dotenv`; dev: `pytest ruff httpx websockets`.
 - [ ] `core/main.py` with `/health`, CORS for `localhost:3000`, `.env` loading, `USE_*` flags exposed at `GET /flags`.
-- [ ] `core/tests/test_no_llm_in_engine.py`: fails if `core/checks/**` or `core/harness/trajectory.py` import `anthropic`. Keep it green from the start.
+- [ ] `core/tests/test_no_llm_in_engine.py`: fails if `core/checks/**` or `core/harness/trajectory.py` import `openai` (or `anthropic`, `langchain`). Keep it green from the start.
 - [ ] Commit `core: bootstrap`.
 
 ## 1. Fixture repo (20 min) — MANUAL-FREE
@@ -43,10 +43,11 @@
 - [ ] Commit `core: sandbox + shim`.
 
 ## 6. Agent harness (40 min)
-- [ ] `core/harness/agent.py`: `tool_runner` loop, model `claude-opus-5`, adaptive thinking, streaming; tools `read_file`, `write_file`, `run_cmd` (allowlist), `http_get`, `done(summary)` implemented against the sandbox container; system prompt = intent verbatim.
+- [ ] `core/harness/loop.py`: ~60-line function-calling loop over `client.chat.completions.create(model=OPENAI_MODEL, messages, tools, tool_choice="auto")`: while `finish_reason == "tool_calls"` → for each call: gate check → execute → append `{"role":"tool","tool_call_id":…}` → repeat; stop on `done` tool or plain assistant text; cap 60 turns. Persist the full `messages` list as the transcript.
+- [ ] `core/harness/agent.py`: tool JSON schemas + implementations; tools `read_file`, `write_file`, `run_cmd` (allowlist), `http_get`, `done(summary)` implemented against the sandbox container; system prompt = intent verbatim.
 - [ ] Gate hook: before every tool call `await run.gate_event.wait()`; `steer` appends a user message; `kill` raises.
 - [ ] `core/harness/trajectory.py`: build `TrajectoryEvent` per call (`in_scope` from scope globs, `content_hash`/`prev_hash`, `node` mapping, drift components per MVP.md §5), append to `runs/<id>/trajectory.jsonl`, broadcast `traj_event`.
-- [ ] `USE_LLM=false` → harness replays a transcript instead of calling the API. **MANUAL: `ant auth status` or `ANTHROPIC_API_KEY` — ask if neither present.**
+- [ ] `USE_LLM=false` → harness replays a transcript instead of calling the API. **MANUAL: `OPENAI_API_KEY` and `OPENAI_MODEL` in `.env` — ask if absent.**
 - [ ] Commit `core: harness + recorder`.
 
 ## 7. Record the real runs (30 min, may spill into H4–H6)
@@ -61,4 +62,4 @@
 - A live `POST /runs` produces a trajectory file and WS events (or, if Docker fell back, does so in subprocess mode with `USE_SANDBOX=false` and the badge says so).
 
 ## Manual steps you will hit (ask, don't work around)
-Docker Desktop running · Anthropic auth · nothing else in H4. n8n, Beeceptor, Slack, GitHub PAT are set up by **Ops** (`plans/ops.md`) in parallel; you consume them at H12. If you need one earlier, write it under **For Ops** in `STATUS.md`.
+Docker Desktop running · `OPENAI_API_KEY` + `OPENAI_MODEL` in `.env` · nothing else in H4. n8n, Beeceptor, Slack, GitHub PAT are set up by **Ops** (`plans/ops.md`) in parallel; you consume them at H12. If you need one earlier, write it under **For Ops** in `STATUS.md`.

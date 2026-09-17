@@ -11,7 +11,7 @@ Tick when done. Claude sessions will ask for anything missing here rather than w
 ## Core laptop
 - [ ] Docker Desktop installed and running; `docker run hello-world` works.
 - [ ] `uv` installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
-- [ ] Anthropic auth: either `ant auth login` or an `ANTHROPIC_API_KEY` in `.env`. Check `ant auth status`.
+- [ ] OpenAI API key with credit → `OPENAI_API_KEY` in `.env`; choose `OPENAI_MODEL` (newest function-calling model on the account; default `gpt-4.1`).
 - [ ] n8n: `docker run -it --rm -p 5678:5678 -v n8n_data:/home/node/.n8n n8nio/n8n` once; create the owner account; note credentials in `.env`.
 - [ ] Beeceptor: create a free endpoint; note the base URL in `.env` as `HONEYPOT_BASE`. Check whether the request log is readable via API on the free plan (write the answer here: ______ ).
 - [ ] Slack: create a workspace or channel `#spatial-soc`; create an Incoming Webhook; paste into `.env`.
@@ -24,8 +24,8 @@ Tick when done. Claude sessions will ask for anything missing here rather than w
 - [ ] .xyz domain: claim the sponsor .xyz domain via the hackathon's Devfolio/.xyz instructions; note the registrar login in the team chat.
 
 ## VR laptop
-- [ ] Unity Hub + Unity 6 LTS with Android Build Support (SDK/NDK/OpenJDK).
-- [ ] Meta XR SDK (All-in-One) imported into a throwaway project once so the package cache is warm.
+- [ ] Unity Hub + **Unity 6000.3.2f1** (exact version — the project is on it) with Android Build Support (SDK/NDK/OpenJDK). Person 3 needs this too (build machine).
+- [ ] First open of `vr/` will download Meta XR SDK 205 + NativeWebSocket + Newtonsoft; do it tonight on both the VR laptop and person 3's laptop so the cache is warm. No git-lfs needed.
 - [ ] Quest 3: Developer Mode on via the Meta Horizon app; `adb devices` shows it over USB; Quest Link or Air Link paired.
 - [ ] Meta Quest Developer Hub installed for casting; or `scrcpy` installed.
 - [ ] Spare battery pack + USB-C cable in the bag. Headset fully charged.

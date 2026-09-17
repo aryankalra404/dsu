@@ -1,6 +1,6 @@
 # Web owner — read root CLAUDE.md and MVP.md §6, §9, §13 first
 
-You own `web/`. The web app is the complete product; VR mirrors it. Nothing ships VR-first.
+You own `web/` (and `vr/`, see `vr/CLAUDE.md`). The web app is the complete product; VR mirrors it. Nothing ships VR-first. Order per gate: web target first, then the VR mirror. `/clear` when switching between the two.
 
 Order of work (H4): Next.js skeleton → `/runs/[id]` page → R3F city from `GET /runs/demo/scene` → dot moves on `traj_event` from `ws://localhost:8000/ws/runs/demo` (Core's replay server) → drift meter.
 H12: claims list editable + confirm, Gate tab (Continue / Steer / Kill / Approve / Reject) wired over HTTP, timeline scrubber.

@@ -1,19 +1,17 @@
 # VR — H4 plan (hours 0–4)
 
 **Gate:** passthrough + WebSocket echo running **on the Quest 3**, and the fixture city rendered with the dot moving on `traj_event`.
+**Good news:** the project already has a working Quest passthrough + hands setup from a previous build. Item 0 is a strip-and-verify, not a setup.
 **Read first:** `CLAUDE.md`, `vr/CLAUDE.md`, `MVP.md` §6, §10, §13.
-**You share Account 2 with Web.** Work in plan items; after each one update `STATUS.md`, `/clear`, and hand the account over (say so in chat). While you don't have it, do `plans/ops.md`.
+**You are person 2; start this after `plans/web-H4.md` items 0–3 are done.** Editor GUI steps, builds and headset testing are done by **Ops (person 3)** on their machine: write them under **For Ops** in `STATUS.md` and keep going.
 **Do not wait for Core.** Until the replay server is up (target: minute 60), load `vr/Assets/SpatialSOC/Fixtures/scene.json` + `events.jsonl` you write from §6 and play them locally.
 **Build APKs only at the end of this plan.** Iterate via Quest Link / Meta XR Simulator.
 
-## 0. Project (30 min) — MANUAL-HEAVY, do it with the human beside you
-- [ ] Unity Hub → new **Unity 6 LTS** 3D (URP) project at `vr/`; switch platform to **Android**; texture compression ASTC; IL2CPP; ARM64.
-- [ ] Import **Meta XR All-in-One SDK** (Package Manager, Meta registry). Run Project Setup Tool → fix all. **MANUAL: package sign-in / registry prompts — ask.**
-- [ ] OpenXR + Meta feature group enabled; passthrough enabled in the OVR/Meta camera rig; hand tracking + controllers both on.
-- [ ] Add **NativeWebSocket** via git URL in Package Manager.
-- [ ] Newtonsoft JSON (`com.unity.nuget.newtonsoft-json`) for the contracts.
-- [ ] `.gitignore` already covers `Library/ Temp/ Logs/ Builds/`; confirm Unity project uses **Force Text** serialisation + Visible Meta Files; enable YAML merge.
-- [ ] Commit `vr: project bootstrap`.
+## 0. Project — already set up; verify and strip (15 min, Ops does the editor part)
+- [ ] Confirm `vr/Packages/manifest.json` has Meta XR SDK 205, XR Management, Oculus loader, XRI 3.3.2, Input System, NativeWebSocket, Newtonsoft, mcp-unity. (It does; just check nothing resolves red when the editor opens.)
+- [ ] **For Ops:** open `vr/` in Unity 6000.3.2f1. Let packages resolve (NativeWebSocket + Newtonsoft are new). In `SampleScene`, delete `BREADBOARD`, `LED`, `MOTOR`, `PIR`, `RES`, `DeleteZone`, `HoverLocation`, `Handle` and the circuit `Canvas`/`Panel` (anything with "Missing Script"). Keep `OVRCameraRig`, `[BuildingBlock] Passthrough`, hands, controllers, `Directional Light`, `Global Volume`, `EventSystem`. File → Save As → `Assets/SpatialSOC/Scene/SpatialSOC.unity`. Add it to Build Settings as scene 0; remove `SampleScene`. Run Meta → Tools → Project Setup Tool → Fix All. Confirm Passthrough + Hand Tracking are on in `Assets/Oculus/OculusProjectConfig.asset`. Commit `vr: clean scene`.
+- [ ] Confirm the Unity MCP bridge is up (editor console shows the MCP server on port 8090) and Claude sees it (`/mcp`).
+- [ ] Commit `vr: project verified`.
 
 ## 1. Contracts (20 min)
 - [ ] `Assets/SpatialSOC/Net/Contracts.cs`: C# classes for `Claim`, `TrajectoryEvent`, `SceneSnapshot` (graph nodes/edges, scope_nodes, agent, trail, gate, cursors) and a `WsEnvelope { string t; }` + per-`t` payload classes — copied field-for-field from MVP.md §6. Unknown `t` → log once, ignore.
@@ -40,8 +38,8 @@
 - [ ] World-space canvas above the city: agent state (running/paused/done/killed), drift score with four component chips, run id. Update from events.
 - [ ] Commit `vr: hud`.
 
-## 5. First device build (30 min) — MANUAL
-- [ ] **Ask the human**: Developer Mode on, `adb devices` shows the headset, USB debugging allowed.
+## 5. First device build (30 min) — Ops does this on the build machine
+- [ ] Write for Ops: Developer Mode on, `adb devices` shows the headset, USB debugging allowed, Build & Run.
 - [ ] Build & Run to the Quest 3. Passthrough visible, city floats over the table, dot moves from Core's replay over the hotspot LAN IP.
 - [ ] If the build pipeline fights you for >30 min, stop building; stay on Quest Link for H12 and build again at the H12 gate. Log it in `plans/decisions.md`.
 - [ ] Commit `vr: first device build config`.

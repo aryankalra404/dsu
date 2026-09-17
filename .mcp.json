@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcp-unity": {
+      "command": "node",
+      "args": [
+        "/Users/aryankalra/Desktop/dsu/vr/Library/PackageCache/com.gamelovers.mcp-unity@382a43a30f4d/Server~/build/index.js"
+      ],
+      "env": {
+        "MCP_UNITY_SETTINGS_PATH": "/Users/aryankalra/Desktop/dsu/vr/ProjectSettings/McpUnitySettings.json",
+        "MCP_UNITY_AUTH_TOKEN_PATH": "/Users/aryankalra/Desktop/dsu/vr/Library/McpUnity/bridge-token"
+      }
+    }
+  }
+}

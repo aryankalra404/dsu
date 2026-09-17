@@ -1,12 +1,17 @@
-# Ops — the rotating hat. Whoever of Web/VR is NOT holding Account 2 does the next unticked item here.
+# Ops — person 3, no Claude. You are the team's hands.
 
-Almost everything here is human clicking. Open a **fresh, short** Claude session only for a specific question ("what JSON body does the n8n HTTP node need for X?"), then close it. Never run a build session and Ops on the same account at the same time.
+Two queues, check both every 30 min:
+1. **`STATUS.md` → For Ops** — click-by-click Unity/headset/build steps written by person 2's Claude. These take priority; person 2 is coding on the assumption you'll do them.
+2. **This file** — accounts, keys, n8n canvas, deploys, slides, recordings, the stopwatch test.
+
+You also own the Unity build machine: same repo, Unity 6 LTS + Android support installed, headset paired to *your* laptop. Pull, open, do the steps, Build & Run, report the result in the Ops block.
+If you need a one-line answer from Claude, ask person 1 or 2 between their items; nobody opens a third session.
 Tick items, note the result inline, and update the **Ops** block in `STATUS.md`. If an item needs a decision, write it under **Blocked / needs a decision** and move on.
 
 ## H0–H4 (do these first; Core and Web are blocked on some of them at H12)
 - [ ] Hotspot up; all three laptops + headset on it; laptop B's LAN IP written in `STATUS.md` → Shared.
 - [ ] GitHub repo public, everyone cloned, branch protection off, Actions enabled. Actions secret `SOC_GITHUB_TOKEN` added (fine-grained PAT: pull_requests:write, statuses:write).
-- [ ] Anthropic auth on Core laptop verified (`ant auth status`) or key in `.env`.
+- [ ] OpenAI API key on the Core laptop: paste as `OPENAI_API_KEY` in `.env`; set `OPENAI_MODEL` to the newest function-calling model the account has (check platform.openai.com → Limits); confirm it has credit. Log the model in `plans/decisions.md`.
 - [ ] n8n running via `docker compose up n8n` on laptop B; owner account created; `N8N_BASIC_AUTH_*` in `.env`; UI reachable at `http://<LAN-IP>:5678` from the other laptops.
 - [ ] Slack: channel `#spatial-soc`, incoming webhook created → `SLACK_WEBHOOK_URL` in `.env` on laptop B. Post a test message.
 - [ ] Beeceptor: endpoint created → `HONEYPOT_BASE` in `.env`. Add rules: `/gov-schemes-api/*` → canned JSON (ask Core for the file `core/fixtures/beeceptor_rules.json` once it exists), `/v1/messages` and `/v1/chat/completions` → canned completions. **Answer and record here:** is the request log readable via API on the free plan? ______
@@ -42,4 +47,4 @@ Tick items, note the result inline, and update the **Ops** block in `STATUS.md`.
 - [ ] Devfolio submission: repo link, Render URL, video, slides. Submit at least 30 min before the deadline.
 
 ## Standing rule
-If you are on Ops and every item above is blocked or done, write the next gate's plan for the owner closest to finishing theirs (recipe at the bottom of `STATUS.md`). That needs one short Claude session; take Account 2 only if it's free.
+If you are on Ops and every item above is blocked or done, draft the next gate's plan for the owner closest to finishing theirs (recipe at the bottom of `STATUS.md`) by hand in `plans/`. The next Claude session on that owner's laptop refines it.
