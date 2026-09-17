@@ -24,7 +24,7 @@ No other colours. No gradients except the district glow. No rainbow.
 - Node radius: `0.006 + 0.004 * clamp(fan_in / 10, 0, 1)` m. In-scope nodes +20 %. `fan_in` is not in the snapshot: both clients compute it as the number of `graph.edges` whose `dst` is the node (a count, not layout).
 - Edge width: 0.0008 m (web: 1 px line).
 - Agent dot radius: **0.012 m**, emissive `accent`, bloom/glow ×1.5, particle tail 0.5 s.
-- Trail width: 0.002 m; out-of-scope segments `danger`; **revert segments ×2 width** and drawn as a doubled line; after final approval the whole trail fades to `ok` over 1 s.
+- Trail width: 0.002 m; in-scope segments `accent` @ 60 % alpha; out-of-scope segments `danger`; **revert segments ×2 width** and drawn as a doubled line; after final approval the whole trail fades to `ok` over 1 s.
 - Scope district: convex hull (web) / bounds box (VR) around `scope_nodes`, padded 0.03 m, fill `accent` @ 6 % alpha, edge `accent` @ 35 % alpha, slow breathing glow (4 s period, ±20 % alpha).
 - Claim satellites: small icosahedra radius 0.008 m orbiting the district at 0.5 rpm, colour grey (`node-scope`) pending → `ok` / `danger` on verdict, with a 300 ms pop scale to 1.4 and back.
 - Selected node: ring radius 1.8× node, `accent` (or the selecting client's presence colour), 2 px / 0.001 m.

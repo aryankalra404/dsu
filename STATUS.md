@@ -16,10 +16,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Web (person 2 — do first each gate)
 - **Gate:** H4 in progress
-- **Done:** item 2 shared fixture `web/fixtures/{scene.json,events.jsonl}` (16 nodes / 20 edges / 20 events, §5 claim types, drift by the §5 formula) served by `/api/fixtures/*`; `?replay=local` plays it at 4× through the store with pause/steer/resume companions; item 1 contracts (`web/lib/contracts.ts` §6 field-for-field incl. trail in_scope/revert), zustand store with per-message reducers + fan_in helper, native WS with backoff, HTTP api (getScene/postDecision/confirmClaims); item 0 bootstrap — Next 15.5 + TS strict + Tailwind 4 + shadcn (radix) + R3F/drei/framer/zustand; dark-only layout, Inter/JetBrains Mono, DESIGN tokens in `web/lib/design.ts` + `soc-*` Tailwind colours; `/runs/[id]` 1280 px three-column frame; `.env.local` in place (gitignored)
-- **In progress:** item 3 the city (R3F)
+- **Done:** item 3 city — R3F canvas (metres, 0.8 m cube), instanced nodes sized by fan_in, one LineSegments for edges, padded convex-hull district with 4 s breathing, agent dot with 400 ms ease-out queue (state commits instantly), trail with danger/accent segments + doubled revert, scrub-aware; loading/empty/error states on the centre panel; verified headless on `?replay=local` (screenshots); item 2 shared fixture `web/fixtures/{scene.json,events.jsonl}` (16 nodes / 20 edges / 20 events, §5 claim types, drift by the §5 formula) served by `/api/fixtures/*`; `?replay=local` plays it at 4× through the store with pause/steer/resume companions; item 1 contracts (`web/lib/contracts.ts` §6 field-for-field incl. trail in_scope/revert), zustand store with per-message reducers + fan_in helper, native WS with backoff, HTTP api (getScene/postDecision/confirmClaims); item 0 bootstrap — Next 15.5 + TS strict + Tailwind 4 + shadcn (radix) + R3F/drei/framer/zustand; dark-only layout, Inter/JetBrains Mono, DESIGN tokens in `web/lib/design.ts` + `soc-*` Tailwind colours; `/runs/[id]` 1280 px three-column frame; `.env.local` in place (gitignored)
+- **In progress:** — (web 0–3 done; switching to VR 0–3 per the agreed order)
 - **Blocked / manual pending:** —
-- **Next:** item 3 on local fixture; swap to Core replay when posted
+- **Next:** after VR 0–3: web item 4 chrome (claims list, drift meter, timeline, state pill), item 5 point at Core replay when the URL is in Shared
 - **For Core:** snapshot `trail[]` items now carry `in_scope` + `revert` (§6, committed 18 Sep) — the replay server's `GET /runs/demo/scene` should emit them, copied from the matching TrajectoryEvent.
 - **For VR:** —
 

@@ -25,13 +25,13 @@
 - [x] Commit `web: local fixtures`.
 
 ## 3. The city (60 min)
-- [ ] `components/city/City.tsx`: R3F `<Canvas>`, dark background, `OrbitControls` (damped), soft key light + bloom via drei `Effects` only if cheap.
-- [ ] `Nodes.tsx`: `InstancedMesh` spheres at `pos`, size by `fan_in` if present; in-scope nodes bright, out-of-scope at 10 % opacity. Hover tooltip with `label`.
-- [ ] `Edges.tsx`: `Line` per edge (drei), dim grey.
-- [ ] `ScopeDistrict.tsx`: translucent glowing hull/box around `scope_nodes`.
-- [ ] `AgentDot.tsx`: emissive sphere lerping to `agent.node` position on each `traj_event`; short particle/trail sprite.
-- [ ] `Trail.tsx`: polyline through `trail[]` node positions; segments where the event was `in_scope:false` are red; revert segments thicker.
-- [ ] Commit `web: city renders + dot moves`.
+- [x] `components/city/City.tsx`: R3F `<Canvas>`, dark background, `OrbitControls` (damped), soft key light + bloom via drei `Effects` only if cheap. (Bloom skipped at H4: emissive material only.)
+- [x] `Nodes.tsx`: `InstancedMesh` spheres at `pos`, size by `fan_in` if present; in-scope nodes bright, out-of-scope at 10 % opacity. Hover tooltip with `label`.
+- [x] `Edges.tsx`: `Line` per edge (drei), dim grey.
+- [x] `ScopeDistrict.tsx`: translucent glowing hull/box around `scope_nodes`.
+- [x] `AgentDot.tsx`: emissive sphere lerping to `agent.node` position on each `traj_event`; short particle/trail sprite.
+- [x] `Trail.tsx`: polyline through `trail[]` node positions; segments where the event was `in_scope:false` are red; revert segments thicker.
+- [x] Commit `web: city renders + dot moves`.
 
 ## 4. Chrome around the canvas (45 min)
 - [ ] `/runs/[id]` three-column layout: left claims list (static from `scene.claims`, type badge, verdict badge placeholder), centre city, right tabs `Evidence | Patch | Gate` (empty states for now).

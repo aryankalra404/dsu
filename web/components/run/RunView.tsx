@@ -2,6 +2,7 @@
 import { useSearchParams } from "next/navigation";
 import { useRun } from "@/lib/useRun";
 import { useRunStore } from "@/lib/store";
+import { City } from "@/components/city/City";
 
 /** Data source: `?replay=local` plays web/fixtures; otherwise Core's replay server from .env.local. */
 export function RunView({ runId }: { runId: string }) {
@@ -14,6 +15,7 @@ export function RunView({ runId }: { runId: string }) {
   const wsStatus = useRunStore((s) => s.wsStatus);
   const eventCount = useRunStore((s) => s.events.length);
   const agent = useRunStore((s) => s.agent);
+  const nodeCount = useRunStore((s) => s.scene?.graph.nodes.length ?? 0);
 
   return (
     <main className="mx-auto grid h-screen w-full max-w-[1280px] grid-cols-[280px_1fr_320px] grid-rows-[48px_1fr] gap-px bg-border">
@@ -25,12 +27,26 @@ export function RunView({ runId }: { runId: string }) {
         </span>
       </header>
       <aside className="bg-background p-3 text-sm text-muted-foreground">Claims</aside>
-      <section className="flex items-center justify-center bg-soc-bg text-sm text-muted-foreground">
-        {sceneStatus === "loading" && "Loading scene…"}
-        {sceneStatus === "error" && <span className="text-soc-danger">Scene failed: {sceneError}</span>}
-        {sceneStatus === "ready" && "City (item 3)"}
+      <section className="relative min-h-0 bg-soc-bg">
+        <CityPanel status={sceneStatus} error={sceneError} nodeCount={nodeCount} />
       </section>
       <aside className="bg-background p-3 text-sm text-muted-foreground">Evidence · Patch · Gate</aside>
     </main>
   );
+}
+
+/** Centre column. Loading / empty / error states per web/CLAUDE.md; the canvas only mounts when there is a scene. */
+function CityPanel({ status, error, nodeCount }: { status: string; error: string | null; nodeCount: number }) {
+  if (status === "idle" || status === "loading") return <Centered>Loading scene…</Centered>;
+  if (status === "error") return <Centered className="text-soc-danger">Scene failed: {error}</Centered>;
+  if (nodeCount === 0) return <Centered>Empty scene — the server sent no nodes.</Centered>;
+  return (
+    <div className="absolute inset-0">
+      <City />
+    </div>
+  );
+}
+
+function Centered({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`flex h-full items-center justify-center text-sm text-muted-foreground ${className}`}>{children}</div>;
 }
