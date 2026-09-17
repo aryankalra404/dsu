@@ -21,7 +21,7 @@ No other colours. No gradients except the district glow. No rainbow.
 
 ## Geometry (metres in VR; web scales the same 0.8 m cube to the canvas)
 - City bounding cube: **0.8 m**, origin at table centre, Y up.
-- Node radius: `0.006 + 0.004 * clamp(fan_in / 10, 0, 1)` m. In-scope nodes +20 %.
+- Node radius: `0.006 + 0.004 * clamp(fan_in / 10, 0, 1)` m. In-scope nodes +20 %. `fan_in` is not in the snapshot: both clients compute it as the number of `graph.edges` whose `dst` is the node (a count, not layout).
 - Edge width: 0.0008 m (web: 1 px line).
 - Agent dot radius: **0.012 m**, emissive `accent`, bloom/glow ×1.5, particle tail 0.5 s.
 - Trail width: 0.002 m; out-of-scope segments `danger`; **revert segments ×2 width** and drawn as a doubled line; after final approval the whole trail fades to `ok` over 1 s.
@@ -40,12 +40,13 @@ No other colours. No gradients except the district glow. No rainbow.
 | killed | `danger`, fades out | "Killed" `danger` | — |
 | merged / rejected | dot hidden; trail `ok` / stays `danger` | "Merged" `ok` / "Rejected" `danger` | — |
 
-Drift meter: 0–100 bar, `accent` → `warn` above 40 → `danger` above 70, four component chips labelled exactly: `scope`, `revert`, `churn`, `advisory`.
+Drift meter: 0–100 bar, `accent` → `warn` above 40 → `danger` above 70, four component chips labelled exactly: `scope`, `revert`, `churn`, `advisory`. Chip states from `drift`: `scope` and `revert` are booleans — `danger` fill when true, `node-dim` when false, no number; `churn` shows the integer, `warn` when > 0 else `node-dim`; `advisory` shows one decimal (`0.2`), `warn` when > 0 else `node-dim`. Before the first event all four are `node-dim` and the bar is empty.
 Verdict badges, exact text: `REAL` (`ok`), `FAKE` (`danger`), `DEAD` (`danger`), `DRIFT` (`danger`), `VULN` (`danger`), `INCONCLUSIVE` (`warn`), `PENDING` (`node-scope`).
 Gate labels, exact text: `Confirm claims` · `Continue` · `Steer` · `Kill` · `Approve` · `Reject`. VR palm menu uses the same words in the same order.
 
 ## Motion
 - Dot moves between nodes with ease-out over **400 ms** per event (replay at 4× still 400 ms; events queue).
+- State commits instantly, only the dot lags: every `traj_event` updates trail, drift, seq and HUD the moment it arrives; only the dot's *visual* position goes through the 400 ms queue. Scrub, timeline and trail always use the committed `seq`, never the dot's animated position.
 - Trail segment draws in over the same 400 ms.
 - Verdict arrival: satellite pop 300 ms; badge fade 200 ms.
 - Camera (web): no auto-camera moves except `F` (focus selected) over 600 ms. VR: never move the city; the user moves.

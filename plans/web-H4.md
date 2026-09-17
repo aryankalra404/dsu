@@ -20,7 +20,7 @@
 - [ ] Commit `web: contracts, store, ws`.
 
 ## 2. Local fixtures (10 min)
-- [ ] `web/fixtures/scene.json` (≈15 nodes, 3 in scope) and `web/fixtures/events.jsonl` (≈20 events incl. one out-of-scope write and one revert), matching §6 exactly.
+- [ ] `web/fixtures/scene.json` (≈15 nodes, 3 in scope) and `web/fixtures/events.jsonl` (≈20 events incl. one out-of-scope write and one revert), matching §6 exactly. **This is the single shared fixture** — VR copies these files unchanged to `vr/Assets/SpatialSOC/Fixtures/`.
 - [ ] `?replay=local` query flag plays the local file at 4× through the same store so the UI is testable with Core down.
 - [ ] Commit `web: local fixtures`.
 

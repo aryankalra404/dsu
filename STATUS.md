@@ -20,14 +20,14 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **In progress:** —
 - **Blocked / manual pending:** —
 - **Next:** `plans/web-H4.md` items 0–3 on local fixture; swap to Core replay when posted
-- **For Core:** —
+- **For Core:** snapshot `trail[]` items now carry `in_scope` + `revert` (§6, committed 18 Sep) — the replay server's `GET /runs/demo/scene` should emit them, copied from the matching TrajectoryEvent.
 - **For VR:** —
 
 ## VR (person 2 — after the web target; person 3 builds/tests on device)
 - **Gate:** H4 not started
-- **Done:** Unity project cleaned and moved to `vr/` (Quest passthrough + hands rig kept, circuit assets removed, Socket.IO → NativeWebSocket, MCP bridge configured)
+- **Done:** Unity project cleaned and moved to `vr/` (Quest passthrough + hands rig kept, circuit assets removed, Socket.IO → NativeWebSocket, MCP bridge configured). 18 Sep: scene stripped via MCP and saved as `Assets/SpatialSOC/Scene/SpatialSOC.unity` (item 0 editor half).
 - **In progress:** —
-- **Blocked / manual pending:** scene strip (For Ops above); headset model confirmed?; Dev mode + adb on person 3's laptop?
+- **Blocked / manual pending:** build settings + Project Setup Tool (For Ops below); headset model confirmed?; Dev mode + adb on person 3's laptop?
 - **Next:** `plans/vr-H4.md` items 0–2; first device build last
 - **For Core:** need laptop LAN IP for the headset once the hotspot is up
 - **For Web:** —
@@ -40,7 +40,13 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **Next:** `plans/ops.md` in order
 
 ## For Ops — manual steps waiting (person 2 writes click-by-click lists here; person 3 ticks them)
-- [ ] **Strip the Unity scene** — see `plans/vr-H4.md` item 0 for the exact list of objects to delete, then Save As `Assets/SpatialSOC/Scene/SpatialSOC.unity`, set as scene 0, Project Setup Tool → Fix All, commit `vr: clean scene`.
+- [ ] **Unity build settings + project setup** (scene strip already done via MCP — `Assets/SpatialSOC/Scene/SpatialSOC.unity` exists):
+  1. Pull `main`. Open `vr/` in Unity Hub with **6000.3.2f1**. Wait for packages to resolve (NativeWebSocket + Newtonsoft download on first open).
+  2. Project window → open `Assets/SpatialSOC/Scene/SpatialSOC.unity`. Hierarchy should show exactly: `Directional Light`, `Global Volume`, `[BuildingBlock] Camera Rig`, `[BuildingBlock] Passthrough`, `EventSystem`. If anything else is there, tell person 2 — don't delete it yourself.
+  3. File → Build Profiles (Unity 6) → Scene List: click **Add Open Scenes**; untick/remove `Assets/Scenes/SampleScene`; drag `SpatialSOC` to index 0.
+  4. Menu Meta → Tools → **Project Setup Tool** → Android tab → **Fix All**, then **Apply All** in Recommended. Repeat until no red items.
+  5. Project window → `Assets/Oculus/OculusProjectConfig.asset` → Inspector: Passthrough Support = **Required** (or Supported), Hand Tracking Support = **Controllers and Hands**. Ctrl/Cmd-S.
+  6. Commit from `vr/`: `git add Assets/SpatialSOC ProjectSettings && git commit -m "vr: build settings + project setup"`, push. Write "done" in the Ops block.
 
 ---
 

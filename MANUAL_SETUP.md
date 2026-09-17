@@ -26,7 +26,7 @@ Tick when done. Claude sessions will ask for anything missing here rather than w
 ## VR laptop
 - [ ] Unity Hub + **Unity 6000.3.2f1** (exact version — the project is on it) with Android Build Support (SDK/NDK/OpenJDK). Person 3 needs this too (build machine).
 - [ ] First open of `vr/` will download Meta XR SDK 205 + NativeWebSocket + Newtonsoft; do it tonight on both the VR laptop and person 3's laptop so the cache is warm. No git-lfs needed.
-- [ ] Quest 3: Developer Mode on via the Meta Horizon app; `adb devices` shows it over USB; Quest Link or Air Link paired.
+- [ ] Quest 3: Developer Mode on via the Meta Horizon app; `adb devices` shows it over USB (person 3's machine). The VR laptop is a Mac — no Quest Link; iterate via Meta XR Simulator / Play mode with the headset emulator, device checks via Ops builds.
 - [ ] Meta Quest Developer Hub installed for casting; or `scrcpy` installed.
 - [ ] Spare battery pack + USB-C cable in the bag. Headset fully charged.
 - [ ] Which headset exactly? ______ (Quest 3 assumed. Quest 2/Pico changes the pitch from mixed reality to VR.)

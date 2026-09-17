@@ -231,7 +231,7 @@ Each claim has exactly one type. Each type has exactly one deterministic rule. E
             "edges": [{"src": "features.schemes", "dst": "utils.helpers", "kind": "import"}]},
   "scope_nodes": ["features.schemes", "features.schemes.tests"],
   "agent": {"node": "utils.helpers", "state": "running" | "paused" | "done" | "killed", "drift": 55},
-  "trail": [{"seq": 1, "node": "features.schemes", "kind": "read"}, …],   // ordered; clients draw the path
+  "trail": [{"seq": 1, "node": "features.schemes", "kind": "read", "in_scope": true, "revert": false}, …],   // ordered; clients draw the path. in_scope/revert copied from the TrajectoryEvent so a late-joining client can colour the trail
   "claims": [ …Claim with optional verdict… ],
   "gate": {"which": "intent" | "pause" | "approve" | null, "resume_url": "…"},
   "iteration": 0,

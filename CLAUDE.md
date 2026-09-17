@@ -60,7 +60,7 @@ Secrets are read only from environment variables loaded from `.env` (gitignored)
 ## Stack (do not substitute)
 
 Core: Python 3.11, FastAPI, `uv`, `ruff`, `openai` Python SDK (Chat Completions + `tools`, hand-written loop in `core/harness/loop.py`, model from `OPENAI_MODEL`), `networkx`, Docker, SQLite, n8n self-hosted.
-Web: Next.js 15 App Router, TypeScript strict, pnpm, React Three Fiber + drei, Tailwind, shadcn/ui, Framer Motion, native WebSocket.
+Web: Next.js 15 App Router, TypeScript strict, pnpm, React Three Fiber + drei, Tailwind, shadcn/ui, Framer Motion, zustand (store), native WebSocket.
 VR: Unity 6 LTS, C#, Meta XR SDK via OpenXR, NativeWebSocket, Quest 3.
 Not used: LangChain, vector DBs, Socket.IO, WebXR, Unity Netcode, Postgres, ORMs.
 

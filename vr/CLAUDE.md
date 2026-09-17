@@ -2,7 +2,7 @@
 
 You own `vr/`. The MR client is a second view onto the same scene as the web: no state, logic or UI the web lacks.
 
-**Project state (already set up — do not recreate):** Unity **6000.3.2f1**, URP, Android target. `Packages/manifest.json` has Meta XR SDK All-in-One 205.0.0, XR Management + Oculus loader, XR Interaction Toolkit 3.3.2, Input System, **NativeWebSocket** (`com.endel.nativewebsocket`), Newtonsoft JSON, and `com.gamelovers.mcp-unity` (the Unity MCP bridge, port 8090, auto-starts with the editor). `Assets/Scenes/SampleScene.unity` contains an **OVRCameraRig**, a `[BuildingBlock] Passthrough`, hand tracking and controller models — keep all of that. It also still contains leftover circuit objects (`BREADBOARD`, `LED`, `MOTOR`, `PIR`, `RES`, `DeleteZone`, `HoverLocation`, `Handle`, the circuit `Canvas`/`Panel`) whose scripts were deleted; the first Ops task is to delete those and Save As `Assets/SpatialSOC/Scene/SpatialSOC.unity`. New code goes under `Assets/SpatialSOC/{Scene,Net,Hands,UI,Fixtures,Scripts}`. `Assets/Samples/Meta XR Interaction SDK` is reference material only.
+**Project state (already set up — do not recreate):** Unity **6000.3.2f1**, URP, Android target. `Packages/manifest.json` has Meta XR SDK All-in-One 205.0.0, XR Management + Oculus loader, XR Interaction Toolkit 3.3.2, Input System, **NativeWebSocket** (`com.endel.nativewebsocket`), Newtonsoft JSON, and `com.gamelovers.mcp-unity` (the Unity MCP bridge, port 8090, auto-starts with the editor). The working scene is **`Assets/SpatialSOC/Scene/SpatialSOC.unity`** (stripped from `SampleScene` on 18 Sep): `[BuildingBlock] Camera Rig` (OVRCameraRig + OVRManager + headset emulator, hands and controller rig underneath), `[BuildingBlock] Passthrough`, `Directional Light`, `Global Volume`, `EventSystem` — keep all of that. `Assets/Scenes/SampleScene.unity` is the old circuit scene; ignore it, do not open it. Ops still has to set `SpatialSOC` as scene 0 and run the Project Setup Tool. New code goes under `Assets/SpatialSOC/{Scene,Net,Hands,UI,Fixtures,Scripts}`. `Assets/Samples/Meta XR Interaction SDK` is reference material only.
 `.mcp.json` at the repo root and in `vr/` points Claude at the bridge with absolute paths for this machine; person 3's machine needs the paths edited or the bridge disabled.
 
 Order of work (H4): project + passthrough running on device → NativeWebSocket connects to `ws://<laptop>:8000/ws/runs/demo` and logs events → city rendered from `GET /runs/demo/scene` (instanced nodes, LineRenderer edges) → dot moves on `traj_event`.
@@ -14,7 +14,7 @@ Rules specific to VR — manual steps:
 
 Rules specific to VR:
 - Coordinates from the server are metres, right-handed, Y up; flip Z on ingest. Graph fits a 0.8 m cube above the table.
-- Iterate via Quest Link / Meta XR Simulator; build APKs only at gates. Developer mode, adb and pairing are manual — ask.
+- Iterate via Meta XR Simulator / Play mode with the headset emulator (this is a Mac — no Quest Link); device checks via Ops builds. Build APKs only at gates. Developer mode, adb and pairing are manual — ask.
 - Controllers must work identically to hands behind one setting.
 - Commit `.unity`/`.prefab` with YAML merge enabled; never commit `Library/`, `Temp/`, `Logs/`, `Builds/`.
 - If a feature is not yet on web, do not build it in VR. Ask the Web owner first.
