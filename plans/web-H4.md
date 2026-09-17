@@ -6,11 +6,11 @@
 **Do not wait for Core.** Until the replay server is up (target: minute 60), use `web/fixtures/scene.json` and `web/fixtures/events.jsonl` that you write from the §6 contract; swap the URL later.
 
 ## 0. Bootstrap (20 min)
-- [ ] `pnpm create next-app@latest web --ts --tailwind --app --eslint --src-dir=false --import-alias "@/*"`.
-- [ ] Add: `three @react-three/fiber @react-three/drei framer-motion zustand`; shadcn init + `button card badge tabs table scroll-area separator tooltip dialog textarea`.
-- [ ] `.env.local` from `.env.example` (`NEXT_PUBLIC_CORE_BASE_URL`, `NEXT_PUBLIC_CORE_WS_URL`). Never commit it.
-- [ ] Dark theme default; base layout with a 1280 px-safe grid. `pnpm typecheck` script.
-- [ ] Commit `web: bootstrap`.
+- [x] `pnpm create next-app@latest web --ts --tailwind --app --eslint --src-dir=false --import-alias "@/*"`.
+- [x] Add: `three @react-three/fiber @react-three/drei framer-motion zustand`; shadcn init + `button card badge tabs table scroll-area separator tooltip dialog textarea`.
+- [x] `.env.local` from `.env.example` (`NEXT_PUBLIC_CORE_BASE_URL`, `NEXT_PUBLIC_CORE_WS_URL`). Never commit it.
+- [x] Dark theme default; base layout with a 1280 px-safe grid. `pnpm typecheck` script.
+- [x] Commit `web: bootstrap`.
 
 ## 1. Types + store (20 min)
 - [ ] `web/lib/contracts.ts`: TypeScript types for `Claim`, `TrajectoryEvent`, `Trace`, `Verdict`, `SceneSnapshot`, and a discriminated union `WsMessage` on `t` — copied field-for-field from MVP.md §6.
