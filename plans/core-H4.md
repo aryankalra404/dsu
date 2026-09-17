@@ -5,10 +5,10 @@
 **Order matters.** Items 1–4 unblock Web and VR; ship them in the first 60–75 minutes even if rough.
 
 ## 0. Bootstrap (15 min)
-- [ ] `uv init core --python 3.11`; deps: `fastapi uvicorn[standard] networkx pydantic openai python-dotenv`; dev: `pytest ruff httpx websockets`.
-- [ ] `core/main.py` with `/health`, CORS for `localhost:3000`, `.env` loading, `USE_*` flags exposed at `GET /flags`.
-- [ ] `core/tests/test_no_llm_in_engine.py`: fails if `core/checks/**` or `core/harness/trajectory.py` import `openai` (or `anthropic`, `langchain`). Keep it green from the start.
-- [ ] Commit `core: bootstrap`.
+- [x] `uv init core --python 3.11`; deps: `fastapi uvicorn[standard] networkx pydantic openai python-dotenv`; dev: `pytest ruff httpx websockets`.
+- [x] `core/main.py` with `/health`, CORS for `localhost:3000`, `.env` loading, `USE_*` flags exposed at `GET /flags`.
+- [x] `core/tests/test_no_llm_in_engine.py`: fails if `core/checks/**` or `core/harness/trajectory.py` import `openai` (or `anthropic`, `langchain`). Keep it green from the start.
+- [x] Commit `core: bootstrap`.
 
 ## 1. Fixture repo (20 min) — MANUAL-FREE
 - [ ] `core/fixtures/repo_schemes/`: tiny Flask app with `app.py` (`run(input: str) -> str` + `GET /schemes?bio=`), `db.py` (sqlite, one deliberately unparameterised query behind a flag so the drifting run can leave it vulnerable), `utils/helpers.py`, `features/__init__.py`, `requirements.txt`, one existing test.

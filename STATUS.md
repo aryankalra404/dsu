@@ -6,11 +6,11 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 ---
 
 ## Core (person 1)
-- **Gate:** H4 not started
-- **Done:** scaffold only
-- **In progress:** —
-- **Blocked / manual pending:** Docker Desktop running? Anthropic auth (`ant auth status`)?
-- **Next:** `plans/core-H4.md` items 0–4, publish replay server, post URL in team chat
+- **Gate:** H4 in progress
+- **Done:** item 0 bootstrap — uv project, FastAPI `/health` + `/flags`, CORS, `.env` loading, `test_no_llm_in_engine.py` green (`core: bootstrap`)
+- **In progress:** item 1 — fixture repo
+- **Blocked / manual pending:** Docker Desktop confirmed running; `OPENAI_API_KEY`/`OPENAI_MODEL` still needed in `.env` before item 6
+- **Next:** `plans/core-H4.md` items 1–4, publish replay server, post URL in team chat
 - **For Web:** —
 - **For VR:** —
 
