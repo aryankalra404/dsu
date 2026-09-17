@@ -1,0 +1,357 @@
+{
+ "graph": {
+  "nodes": [
+   {
+    "id": "features.schemes",
+    "label": "schemes",
+    "module": "features",
+    "pos": [
+     0.18,
+     0.22,
+     -0.05
+    ],
+    "in_scope": true
+   },
+   {
+    "id": "features.schemes.agent",
+    "label": "agent",
+    "module": "features.schemes",
+    "pos": [
+     0.24,
+     0.25,
+     0.02
+    ],
+    "in_scope": true
+   },
+   {
+    "id": "features.schemes.tests",
+    "label": "tests",
+    "module": "features.schemes",
+    "pos": [
+     0.3,
+     0.28,
+     0.09
+    ],
+    "in_scope": true
+   },
+   {
+    "id": "app",
+    "label": "app",
+    "module": "app",
+    "pos": [
+     -0.16,
+     -0.237,
+     0.115
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "config",
+    "label": "config",
+    "module": "config",
+    "pos": [
+     -0.331,
+     -0.075,
+     -0.102
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "routes",
+    "label": "routes",
+    "module": "routes",
+    "pos": [
+     -0.341,
+     -0.087,
+     -0.352
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "routes.api",
+    "label": "api",
+    "module": "routes",
+    "pos": [
+     -0.085,
+     -0.271,
+     -0.311
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "features",
+    "label": "features",
+    "module": "features",
+    "pos": [
+     -0.091,
+     0.047,
+     -0.286
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "features.auth",
+    "label": "auth",
+    "module": "features",
+    "pos": [
+     -0.228,
+     -0.036,
+     0.34
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "models",
+    "label": "models",
+    "module": "models",
+    "pos": [
+     0.012,
+     -0.133,
+     0.362
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "models.user",
+    "label": "user",
+    "module": "models",
+    "pos": [
+     -0.348,
+     0.061,
+     -0.16
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "utils",
+    "label": "utils",
+    "module": "utils",
+    "pos": [
+     -0.282,
+     -0.251,
+     -0.146
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "utils.helpers",
+    "label": "helpers",
+    "module": "utils",
+    "pos": [
+     0.175,
+     -0.224,
+     0.062
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "utils.http",
+    "label": "http",
+    "module": "utils",
+    "pos": [
+     0.054,
+     -0.144,
+     0.036
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "utils.db",
+    "label": "db",
+    "module": "utils",
+    "pos": [
+     -0.337,
+     -0.275,
+     -0.223
+    ],
+    "in_scope": false
+   },
+   {
+    "id": "tests",
+    "label": "tests",
+    "module": "tests",
+    "pos": [
+     0.083,
+     -0.12,
+     -0.141
+    ],
+    "in_scope": false
+   }
+  ],
+  "edges": [
+   {
+    "src": "app",
+    "dst": "routes",
+    "kind": "import"
+   },
+   {
+    "src": "app",
+    "dst": "config",
+    "kind": "import"
+   },
+   {
+    "src": "routes",
+    "dst": "routes.api",
+    "kind": "import"
+   },
+   {
+    "src": "routes.api",
+    "dst": "features.schemes",
+    "kind": "import"
+   },
+   {
+    "src": "routes.api",
+    "dst": "features.auth",
+    "kind": "import"
+   },
+   {
+    "src": "features.schemes",
+    "dst": "features.schemes.agent",
+    "kind": "import"
+   },
+   {
+    "src": "features.schemes.agent",
+    "dst": "utils.http",
+    "kind": "import"
+   },
+   {
+    "src": "features.schemes.agent",
+    "dst": "utils.helpers",
+    "kind": "import"
+   },
+   {
+    "src": "features.schemes",
+    "dst": "models.user",
+    "kind": "import"
+   },
+   {
+    "src": "features.auth",
+    "dst": "models.user",
+    "kind": "import"
+   },
+   {
+    "src": "models.user",
+    "dst": "utils.db",
+    "kind": "import"
+   },
+   {
+    "src": "models",
+    "dst": "models.user",
+    "kind": "import"
+   },
+   {
+    "src": "features.schemes.tests",
+    "dst": "features.schemes",
+    "kind": "import"
+   },
+   {
+    "src": "tests",
+    "dst": "features.auth",
+    "kind": "import"
+   },
+   {
+    "src": "utils",
+    "dst": "utils.helpers",
+    "kind": "import"
+   },
+   {
+    "src": "utils.helpers",
+    "dst": "utils.db",
+    "kind": "import"
+   },
+   {
+    "src": "features.schemes.agent",
+    "dst": "utils.helpers",
+    "kind": "call"
+   },
+   {
+    "src": "routes.api",
+    "dst": "utils.helpers",
+    "kind": "call"
+   },
+   {
+    "src": "features",
+    "dst": "features.schemes",
+    "kind": "import"
+   },
+   {
+    "src": "features",
+    "dst": "features.auth",
+    "kind": "import"
+   }
+  ]
+ },
+ "scope_nodes": [
+  "features.schemes",
+  "features.schemes.agent",
+  "features.schemes.tests"
+ ],
+ "agent": {
+  "node": "features.schemes",
+  "state": "running",
+  "drift": 0
+ },
+ "trail": [],
+ "claims": [
+  {
+   "id": "c1",
+   "type": "fetches_external",
+   "text": "calls the live gov schemes API",
+   "target": "gov-schemes-api",
+   "axis": null,
+   "source": "llm",
+   "confirmed": true
+  },
+  {
+   "id": "c2",
+   "type": "reasons_on_input",
+   "text": "explains eligibility from the bio",
+   "target": null,
+   "axis": "income",
+   "source": "llm",
+   "confirmed": true
+  },
+  {
+   "id": "c3",
+   "type": "declares_capability",
+   "text": "has a search_web function",
+   "target": null,
+   "axis": null,
+   "source": "ast",
+   "confirmed": true
+  },
+  {
+   "id": "c4",
+   "type": "stays_in_scope",
+   "text": "only touches /features/schemes",
+   "target": null,
+   "axis": null,
+   "source": "auto",
+   "confirmed": true
+  },
+  {
+   "id": "c5",
+   "type": "no_churn",
+   "text": "does not churn or revert its own edits",
+   "target": null,
+   "axis": null,
+   "source": "auto",
+   "confirmed": true
+  },
+  {
+   "id": "c6",
+   "type": "resists_probe",
+   "text": "resists SQLi and path traversal probes",
+   "target": null,
+   "axis": null,
+   "source": "auto",
+   "confirmed": true
+  }
+ ],
+ "gate": {
+  "which": null,
+  "resume_url": ""
+ },
+ "iteration": 0,
+ "cursors": []
+}

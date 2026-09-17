@@ -1,12 +1,12 @@
 // MVP.md §6 — contracts are law. Field-for-field; do not add fields here, propose them in §6 first.
 
 export type ClaimType =
+  | "stays_in_scope"
+  | "no_churn"
   | "fetches_external"
-  | "reasons_on_input"
-  | "adds_tests"
-  | "validates_input"
-  | "no_vuln"
-  | (string & {}); // §5 types; keep open so an unknown type never breaks parsing
+  | "declares_capability"
+  | "resists_probe"
+  | "reasons_on_input"; // §5, exactly six
 
 export type ClaimSource = "llm" | "ast" | "human" | "agent" | "auto";
 
