@@ -1,0 +1,64 @@
+# Core — H4 plan (hours 0–4)
+
+**Gate:** the agent runs in the cage on the fixture, trajectory events stream over WS, and both clients see the dot move.
+**Read first:** `CLAUDE.md`, `core/CLAUDE.md`, `MVP.md` §4, §6, §8, §13.
+**Order matters.** Items 1–4 unblock Web and VR; ship them in the first 60–75 minutes even if rough.
+
+## 0. Bootstrap (15 min)
+- [ ] `uv init core --python 3.11`; deps: `fastapi uvicorn[standard] networkx pydantic anthropic python-dotenv`; dev: `pytest ruff httpx websockets`.
+- [ ] `core/main.py` with `/health`, CORS for `localhost:3000`, `.env` loading, `USE_*` flags exposed at `GET /flags`.
+- [ ] `core/tests/test_no_llm_in_engine.py`: fails if `core/checks/**` or `core/harness/trajectory.py` import `anthropic`. Keep it green from the start.
+- [ ] Commit `core: bootstrap`.
+
+## 1. Fixture repo (20 min) — MANUAL-FREE
+- [ ] `core/fixtures/repo_schemes/`: tiny Flask app with `app.py` (`run(input: str) -> str` + `GET /schemes?bio=`), `db.py` (sqlite, one deliberately unparameterised query behind a flag so the drifting run can leave it vulnerable), `utils/helpers.py`, `features/__init__.py`, `requirements.txt`, one existing test.
+- [ ] `core/fixtures/repo_schemes/SPATIAL_SOC.md` with the intent string from MVP.md §3.
+- [ ] Commit `core: fixture repo`.
+
+## 2. Static scene + layout (25 min)
+- [ ] `core/scene/layout.py`: walk `repo_schemes` with `ast`, build import/call graph in `networkx`, `spring_layout(dim=3, seed=7)`, scale to 0.8 m cube, lift scope nodes +0.1 m, emit `graph.nodes[].pos`, `edges`, `in_scope`.
+- [ ] `core/scene/state.py`: in-memory `RunState` = MVP.md §6 scene snapshot (`graph`, `scope_nodes`, `agent`, `trail`, `claims`, `gate`, `iteration`, `cursors`).
+- [ ] `GET /runs/{id}/scene` returns it. `GET /runs/demo/scene` works with no LLM, no Docker.
+- [ ] Commit `core: scene layout + snapshot`.
+
+## 3. Hand-written drifting trajectory (20 min)
+- [ ] `core/fixtures/runs/drifting/trajectory.jsonl`: ~25 `TrajectoryEvent`s (§6) telling the story: 6 in-scope reads/writes → `write utils/helpers.py` (`in_scope:false`, `drift.scope_violation:true`) → revert (`content_hash == earlier prev_hash`, `drift.revert:true`) → `run_cmd pytest` exit 1 → `http` to nothing → `done`. `node` field set for every event.
+- [ ] `core/fixtures/runs/clean/trajectory.jsonl`: ~15 in-scope events, `run_cmd pytest` exit 0, `done`.
+- [ ] This is a placeholder until item 7 records real runs. Mark the files `# HANDWRITTEN — replace at H12` in a sibling `README`.
+- [ ] Commit `core: handwritten fixture trajectories`.
+
+## 4. WS hub + replay server (30 min) — **PUBLISH THIS; Web and VR are waiting**
+- [ ] `core/ws.py`: `/ws/runs/{run_id}`; per-run connection set; `broadcast(run_id, msg)`; accept upstream `cursor|select|scrub`, rebroadcast `cursors` at ≤20 Hz and `select`/`scrub` immediately; ignore unknown `t`.
+- [ ] `core/replay.py`: `python -m core.replay --run drifting --speed 4` → loads the jsonl, serves the scene, streams `traj_event` in order with `ts_ms` deltas / speed, updates `agent.node`, `trail`, `drift`; emits `agent_state` and `final`.
+- [ ] Verify with `websocat ws://localhost:8000/ws/runs/demo` — events appear.
+- [ ] Post in team chat: "replay server up: `uv run python -m core.replay`, scene at `/runs/demo/scene`, WS at `/ws/runs/demo`". Commit `core: ws hub + replay`.
+
+## 5. Sandbox image (45 min, timebox — see §8 fallback)
+- [ ] `sandbox/Dockerfile` (python:3.11-slim, `/app`, installs `requirements.txt` + `polygraph_shim/`).
+- [ ] `sandbox/polygraph_shim/sitecustomize.py`: patch `requests`/`httpx`, `sys.setprofile` filtered to `/app`, `ast` walk for `defined`, write `/out/trace.json`. HTTP host rewrite to `HONEYPOT_BASE/{alias}/…` (fallback to local if empty).
+- [ ] `sandbox/runner.py`: runs `app.run(argv[1])`, writes output/exit/duration.
+- [ ] `core/sandbox/docker.py`: `build()`, `run(mode, input) -> Trace`.
+- [ ] `docker compose` with `core`, `n8n`, `honeypot-fallback` (tiny FastAPI serving canned JSON). **MANUAL: Docker Desktop must be running — ask if `docker info` fails.**
+- [ ] Network isolation: try a compose network where only `honeypot-fallback` is reachable. **If not working by minute 45, take the MVP.md §8 fallback and log it in `plans/decisions.md`.**
+- [ ] Commit `core: sandbox + shim`.
+
+## 6. Agent harness (40 min)
+- [ ] `core/harness/agent.py`: `tool_runner` loop, model `claude-opus-5`, adaptive thinking, streaming; tools `read_file`, `write_file`, `run_cmd` (allowlist), `http_get`, `done(summary)` implemented against the sandbox container; system prompt = intent verbatim.
+- [ ] Gate hook: before every tool call `await run.gate_event.wait()`; `steer` appends a user message; `kill` raises.
+- [ ] `core/harness/trajectory.py`: build `TrajectoryEvent` per call (`in_scope` from scope globs, `content_hash`/`prev_hash`, `node` mapping, drift components per MVP.md §5), append to `runs/<id>/trajectory.jsonl`, broadcast `traj_event`.
+- [ ] `USE_LLM=false` → harness replays a transcript instead of calling the API. **MANUAL: `ant auth status` or `ANTHROPIC_API_KEY` — ask if neither present.**
+- [ ] Commit `core: harness + recorder`.
+
+## 7. Record the real runs (30 min, may spill into H4–H6)
+- [ ] `POST /runs` with the fixture + intent; let the agent run live; save `transcript.json` + `trajectory.jsonl` under `fixtures/runs/clean/`.
+- [ ] Drifting run: ambiguous intent variant + a `TODO: refactor utils` comment in the repo; run again; if it drifts, save as `fixtures/runs/drifting/`. If it stays clean after 2 tries, keep the handwritten file and note it in `plans/decisions.md`.
+- [ ] Replace handwritten trajectories; rerun replay; confirm the story still reads on screen.
+- [ ] Commit `core: recorded runs`.
+
+## Acceptance for H4
+- `uv run pytest core/tests` green (includes `test_no_llm_in_engine`).
+- `python -m core.replay` streams; Web and VR both show the dot moving on the fixture city.
+- A live `POST /runs` produces a trajectory file and WS events (or, if Docker fell back, does so in subprocess mode with `USE_SANDBOX=false` and the badge says so).
+
+## Manual steps you will hit (ask, don't work around)
+Docker Desktop running · Anthropic auth · nothing else in H4. n8n, Beeceptor, Slack, GitHub PAT are set up by **Ops** (`plans/ops.md`) in parallel; you consume them at H12. If you need one earlier, write it under **For Ops** in `STATUS.md`.
