@@ -13,11 +13,11 @@
 - [x] Commit `web: bootstrap`.
 
 ## 1. Types + store (20 min)
-- [ ] `web/lib/contracts.ts`: TypeScript types for `Claim`, `TrajectoryEvent`, `Trace`, `Verdict`, `SceneSnapshot`, and a discriminated union `WsMessage` on `t` — copied field-for-field from MVP.md §6.
-- [ ] `web/lib/store.ts` (zustand): `scene`, `events[]`, `agent`, `trail[]`, `drift`, `claims`, `gate`, `cursors`, `scrubSeq | null`; reducers per `WsMessage`; unknown `t` ignored.
-- [ ] `web/lib/ws.ts`: connect to `${WS_URL}/ws/runs/${id}`, JSON parse, dispatch to store, reconnect with backoff, send helper for `cursor|select|scrub`.
-- [ ] `web/lib/api.ts`: `getScene(id)`, `postDecision(id, body)`, `confirmClaims(id, claims)` — HTTP only.
-- [ ] Commit `web: contracts, store, ws`.
+- [x] `web/lib/contracts.ts`: TypeScript types for `Claim`, `TrajectoryEvent`, `Trace`, `Verdict`, `SceneSnapshot`, and a discriminated union `WsMessage` on `t` — copied field-for-field from MVP.md §6.
+- [x] `web/lib/store.ts` (zustand): `scene`, `events[]`, `agent`, `trail[]`, `drift`, `claims`, `gate`, `cursors`, `scrubSeq | null`; reducers per `WsMessage`; unknown `t` ignored.
+- [x] `web/lib/ws.ts`: connect to `${WS_URL}/ws/runs/${id}`, JSON parse, dispatch to store, reconnect with backoff, send helper for `cursor|select|scrub`.
+- [x] `web/lib/api.ts`: `getScene(id)`, `postDecision(id, body)`, `confirmClaims(id, claims)` — HTTP only.
+- [x] Commit `web: contracts, store, ws`.
 
 ## 2. Local fixtures (10 min)
 - [ ] `web/fixtures/scene.json` (≈15 nodes, 3 in scope) and `web/fixtures/events.jsonl` (≈20 events incl. one out-of-scope write and one revert), matching §6 exactly. **This is the single shared fixture** — VR copies these files unchanged to `vr/Assets/SpatialSOC/Fixtures/`.

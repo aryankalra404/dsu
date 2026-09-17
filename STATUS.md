@@ -16,10 +16,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Web (person 2 — do first each gate)
 - **Gate:** H4 in progress
-- **Done:** item 0 bootstrap — Next 15.5 + TS strict + Tailwind 4 + shadcn (radix) + R3F/drei/framer/zustand; dark-only layout, Inter/JetBrains Mono, DESIGN tokens in `web/lib/design.ts` + `soc-*` Tailwind colours; `/runs/[id]` 1280 px three-column frame; `.env.local` in place (gitignored)
-- **In progress:** item 1 contracts + store + ws
+- **Done:** item 1 contracts (`web/lib/contracts.ts` §6 field-for-field incl. trail in_scope/revert), zustand store with per-message reducers + fan_in helper, native WS with backoff, HTTP api (getScene/postDecision/confirmClaims); item 0 bootstrap — Next 15.5 + TS strict + Tailwind 4 + shadcn (radix) + R3F/drei/framer/zustand; dark-only layout, Inter/JetBrains Mono, DESIGN tokens in `web/lib/design.ts` + `soc-*` Tailwind colours; `/runs/[id]` 1280 px three-column frame; `.env.local` in place (gitignored)
+- **In progress:** item 2 local fixtures
 - **Blocked / manual pending:** —
-- **Next:** items 1–3 on local fixture; swap to Core replay when posted
+- **Next:** items 2–3 on local fixture; swap to Core replay when posted
 - **For Core:** snapshot `trail[]` items now carry `in_scope` + `revert` (§6, committed 18 Sep) — the replay server's `GET /runs/demo/scene` should emit them, copied from the matching TrajectoryEvent.
 - **For VR:** —
 
