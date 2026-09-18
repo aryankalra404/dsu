@@ -8,8 +8,11 @@ services:
   honeypot-fallback:
     build:
       context: sandbox/honeypot_fallback
+    ports:
+      - "9000:8000"  # host-reachable: the harness's own http_get runs on the host, not in the sandbox
     networks:
       - sandbox_net
+      - default  # sandbox_net is internal:true, which blocks published ports entirely
 
 networks:
   sandbox_net:

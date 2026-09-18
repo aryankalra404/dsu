@@ -152,7 +152,7 @@ def run_cmd(workdir: Path, cmd: str) -> str:
 def http_get(url: str) -> str:
     parsed = urlparse(url)
     alias = parsed.hostname or ""
-    honeypot_base = (os.getenv("HONEYPOT_BASE") or "http://localhost:8000").rstrip("/")
+    honeypot_base = (os.getenv("HONEYPOT_BASE") or "http://localhost:9000").rstrip("/")
     forward_url = f"{honeypot_base}/{alias}{parsed.path}"
     if parsed.query:
         forward_url += f"?{parsed.query}"
