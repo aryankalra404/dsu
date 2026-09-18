@@ -1,0 +1,7 @@
+{
+  "schemes": [
+    {"name": "Rural Housing Grant", "min_income": 0},
+    {"name": "Student Stipend", "min_income": 20000},
+    {"name": "Senior Pension Top-up", "min_income": 0}
+  ]
+}

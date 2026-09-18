@@ -1,175 +1,331 @@
-"""Auto-imported by the Python interpreter inside the sandbox container (installed
-into site-packages by sandbox/Dockerfile). Patches outbound HTTP, traces function
-calls under /app, and walks /app for defined functions (MVP.md §8).
-"""
+"""Polygraph shim (MVP.md §8). Auto-imported by the interpreter when this folder is on PYTHONPATH (subprocess
+sandbox) or installed into site-packages (Docker sandbox). Configured only by environment:
+
+  SOC_APP_DIR         the supervised repo (default /app); only code under it is traced
+  SOC_TRACE           "1" = record calls + sinks for trace.json; "0" = only redirect HTTP (agent dev-loop runs)
+  SOC_PROBE_INPUT     probe payload; a sink whose statement/path/command contains it is marked arg_has_payload
+  SOC_CHAOS           "host:status" -> synthetic response for that host, nothing forwarded
+  SOC_HONEYPOT_BASE   every outbound HTTP request is rewritten to {base}/{host}{path}?{query}
+
+Outbound HTTP is intercepted in urllib, requests and httpx. Sinks are wrapped directly (sqlite3 execute*,
+open, subprocess.Popen, os.system), so arg_has_payload is a fact about the actual argument, not a guess."""
 
 import ast
-import functools
+import builtins
 import os
 import sys
+import threading
 import time
 
-APP_DIR = "/app"
-RUN_START = time.time()
+APP_DIR = os.path.realpath(os.environ.get("SOC_APP_DIR", "/app"))
+TRACE = os.environ.get("SOC_TRACE", "1") == "1"
+PROBE = os.environ.get("SOC_PROBE_INPUT", "")
+CHAOS = os.environ.get("SOC_CHAOS", "")
+HONEYPOT = os.environ.get("SOC_HONEYPOT_BASE", "").rstrip("/")
+SKIP_PARTS = (os.sep + "site-packages" + os.sep, os.sep + ".venv" + os.sep, os.sep + "node_modules" + os.sep)
+T0 = time.time()
 
-PROBE_INPUT = sys.argv[1] if len(sys.argv) > 1 else ""
-CHAOS = os.environ.get("SOC_CHAOS", "")  # "host:status"
-HONEYPOT_BASE = os.environ.get("HONEYPOT_BASE", "")
-LOCAL_HONEYPOT_BASE = os.environ.get("LOCAL_HONEYPOT_BASE", "http://honeypot-fallback:8000")
-
-SINK_FUNCS = {"execute", "open", "call", "check_output", "Popen"}
-
-HTTP_LOG: list[dict] = []
-CALL_LOG: list[dict] = []
-
-
-def _now_ms() -> int:
-    return int((time.time() - RUN_START) * 1000)
+HTTP_LOG: list = []
+CALL_LOG: list = []
+DEFINED: list = []
+_seen: set = set()
+_rel_cache: dict = {}
 
 
-def _honeypot_base() -> str:
-    return (HONEYPOT_BASE or LOCAL_HONEYPOT_BASE).rstrip("/")
+def _now() -> int:
+    return int((time.time() - T0) * 1000)
 
 
-# code running inside /app that tries to call an LLM directly gets redirected
-# to the honeypot mock instead of a real API.
-os.environ.setdefault("OPENAI_BASE_URL", f"{_honeypot_base()}/openai")
+def _rel(filename: str):
+    """Repo-relative POSIX path for a code filename under APP_DIR, else None. Cached."""
+    hit = _rel_cache.get(filename)
+    if hit is not None or filename in _rel_cache:
+        return hit
+    rel = None
+    try:
+        real = os.path.realpath(filename)
+        if real.startswith(APP_DIR + os.sep) and not any(p in real for p in SKIP_PARTS):
+            rel = os.path.relpath(real, APP_DIR).replace(os.sep, "/")
+    except (ValueError, OSError):
+        rel = None
+    _rel_cache[filename] = rel
+    return rel
 
 
-def _chaos_status(alias: str) -> int | None:
+def _called_from_app(depth: int = 2) -> bool:
+    try:
+        return _rel(sys._getframe(depth).f_code.co_filename) is not None
+    except ValueError:
+        return False
+
+
+# ------------------------------------------------------------------ HTTP
+
+def _chaos_status(host: str):
     if not CHAOS:
         return None
-    chaos_host, _, chaos_status = CHAOS.partition(":")
-    return int(chaos_status) if chaos_host == alias else None
+    h, _, status = CHAOS.rpartition(":")
+    return int(status) if h and h.lower() in (host or "").lower() else None
 
 
-def _forward_url(alias: str, path: str, query: str = "") -> str:
-    url = f"{_honeypot_base()}/{alias}{path}"
+def _forward(host: str, path: str, query: str) -> str:
+    url = f"{HONEYPOT}/{host}{path or '/'}"
     return f"{url}?{query}" if query else url
 
 
-def _patch_requests() -> None:
+def _log_http(method: str, host: str, path: str, status):
+    if not host or (HONEYPOT and host in HONEYPOT):
+        return
+    HTTP_LOG.append({"ts": _now(), "method": method, "host": host, "path": path, "status": status})
+
+
+def _patch_urllib():
+    import io
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urlsplit
+
+    original = urllib.request.OpenerDirector.open
+
+    def patched(self, fullurl, data=None, *args, **kwargs):
+        req = fullurl if isinstance(fullurl, urllib.request.Request) else urllib.request.Request(fullurl, data)
+        parts = urlsplit(req.full_url)
+        host = parts.hostname or ""
+        if HONEYPOT and host and host not in HONEYPOT:
+            method = req.get_method()
+            chaos = _chaos_status(host)
+            if chaos is not None:
+                _log_http(method, host, parts.path, chaos)
+                raise urllib.error.HTTPError(req.full_url, chaos, "chaos", {}, io.BytesIO(b""))
+            req.full_url = _forward(host, parts.path, parts.query)
+            try:
+                resp = original(self, req, *args, **kwargs)
+            except urllib.error.HTTPError as e:
+                _log_http(method, host, parts.path, e.code)
+                raise
+            except Exception:
+                _log_http(method, host, parts.path, None)
+                raise
+            _log_http(method, host, parts.path, getattr(resp, "status", None))
+            return resp
+        return original(self, fullurl, data, *args, **kwargs)
+
+    urllib.request.OpenerDirector.open = patched
+
+
+def _patch_requests():
     try:
         import requests
     except ImportError:
         return
+    from urllib.parse import urlsplit
 
-    original_request = requests.Session.request
+    original = requests.Session.request
 
-    @functools.wraps(original_request)
     def patched(self, method, url, *args, **kwargs):
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        alias = parsed.hostname or ""
-
-        chaos_status = _chaos_status(alias)
-        if chaos_status is not None:
-            HTTP_LOG.append({"ts": _now_ms(), "method": method, "host": alias, "path": parsed.path, "status": chaos_status})
+        parts = urlsplit(url)
+        host = parts.hostname or ""
+        if not HONEYPOT or not host or host in HONEYPOT:
+            return original(self, method, url, *args, **kwargs)
+        chaos = _chaos_status(host)
+        if chaos is not None:
+            _log_http(method, host, parts.path, chaos)
             resp = requests.Response()
-            resp.status_code = chaos_status
+            resp.status_code = chaos
+            resp.url = url
+            resp._content = b""
             return resp
-
-        forward_url = _forward_url(alias, parsed.path, parsed.query)
         try:
-            resp = original_request(self, method, forward_url, *args, **kwargs)
-            status = resp.status_code
+            resp = original(self, method, _forward(host, parts.path, parts.query), *args, **kwargs)
         except Exception:
-            resp = None
-            status = None
-
-        HTTP_LOG.append({"ts": _now_ms(), "method": method, "host": alias, "path": parsed.path, "status": status})
+            _log_http(method, host, parts.path, None)
+            raise
+        _log_http(method, host, parts.path, resp.status_code)
         return resp
 
     requests.Session.request = patched
 
 
-def _patch_httpx() -> None:
+def _patch_httpx():
     try:
         import httpx
     except ImportError:
         return
 
-    def _make_patched(original_send, is_async: bool):
-        async def patched_async(self, request, *args, **kwargs):
-            alias = request.url.host
-            chaos_status = _chaos_status(alias)
-            if chaos_status is not None:
-                HTTP_LOG.append({"ts": _now_ms(), "method": request.method, "host": alias, "path": request.url.path, "status": chaos_status})
-                return httpx.Response(chaos_status, request=request)
-            request.url = httpx.URL(_forward_url(alias, request.url.path, str(request.url.query or "")))
-            resp = await original_send(self, request, *args, **kwargs)
-            HTTP_LOG.append({"ts": _now_ms(), "method": request.method, "host": alias, "path": request.url.path, "status": resp.status_code})
-            return resp
+    def rewrite(request):
+        host = request.url.host or ""
+        if not HONEYPOT or not host or host in HONEYPOT:
+            return None, host
+        chaos = _chaos_status(host)
+        if chaos is not None:
+            return httpx.Response(chaos, request=request), host
+        request.url = httpx.URL(_forward(host, request.url.path, request.url.query.decode() if isinstance(
+            request.url.query, bytes) else str(request.url.query or "")))
+        return None, host
 
-        def patched_sync(self, request, *args, **kwargs):
-            alias = request.url.host
-            chaos_status = _chaos_status(alias)
-            if chaos_status is not None:
-                HTTP_LOG.append({"ts": _now_ms(), "method": request.method, "host": alias, "path": request.url.path, "status": chaos_status})
-                return httpx.Response(chaos_status, request=request)
-            request.url = httpx.URL(_forward_url(alias, request.url.path, str(request.url.query or "")))
-            resp = original_send(self, request, *args, **kwargs)
-            HTTP_LOG.append({"ts": _now_ms(), "method": request.method, "host": alias, "path": request.url.path, "status": resp.status_code})
-            return resp
+    sync_send, async_send = httpx.Client.send, httpx.AsyncClient.send
 
-        return patched_async if is_async else patched_sync
+    def send(self, request, *args, **kwargs):
+        path = request.url.path
+        synthetic, host = rewrite(request)
+        if synthetic is not None:
+            _log_http(request.method, host, path, synthetic.status_code)
+            return synthetic
+        resp = sync_send(self, request, *args, **kwargs)
+        _log_http(request.method, host, path, resp.status_code)
+        return resp
 
-    if hasattr(httpx, "Client"):
-        httpx.Client.send = _make_patched(httpx.Client.send, is_async=False)
-    if hasattr(httpx, "AsyncClient"):
-        httpx.AsyncClient.send = _make_patched(httpx.AsyncClient.send, is_async=True)
+    async def asend(self, request, *args, **kwargs):
+        path = request.url.path
+        synthetic, host = rewrite(request)
+        if synthetic is not None:
+            _log_http(request.method, host, path, synthetic.status_code)
+            return synthetic
+        resp = await async_send(self, request, *args, **kwargs)
+        _log_http(request.method, host, path, resp.status_code)
+        return resp
+
+    httpx.Client.send = send
+    httpx.AsyncClient.send = asend
 
 
-def _trace_calls(frame, event, arg) -> None:
-    # 'call' catches pure-Python functions; 'c_call' catches C-implemented
-    # builtins like sqlite3.Cursor.execute and open() -- the actual sinks
-    # named in MVP.md §5, which a plain 'call'-only filter would miss entirely.
-    if event == "call":
-        if not frame.f_code.co_filename.startswith(APP_DIR):
-            return
-        fn_name = frame.f_code.co_name
-    elif event == "c_call":
-        if not frame.f_code.co_filename.startswith(APP_DIR):
-            return
-        fn_name = getattr(arg, "__name__", None)
-        if fn_name is None:
-            return
-    else:
+# ------------------------------------------------------------------ sinks
+
+def _has_payload(value) -> bool:
+    if not PROBE:
+        return False
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode("utf-8", "replace")
+    if isinstance(value, os.PathLike):
+        value = os.fspath(value)
+    if isinstance(value, str):
+        return PROBE in value
+    if isinstance(value, (list, tuple)):
+        return any(_has_payload(v) for v in value)
+    return False
+
+
+def _sink(fn: str, first_arg) -> None:
+    if TRACE and _called_from_app(3):
+        CALL_LOG.append({"ts": _now(), "fn": fn, "sink": True, "arg_has_payload": _has_payload(first_arg)})
+
+
+def _patch_sinks():
+    import sqlite3
+    import subprocess
+
+    class Cursor(sqlite3.Cursor):
+        def execute(self, sql, *a, **k):
+            _sink("sqlite3.Cursor.execute", sql)
+            return super().execute(sql, *a, **k)
+
+        def executemany(self, sql, *a, **k):
+            _sink("sqlite3.Cursor.executemany", sql)
+            return super().executemany(sql, *a, **k)
+
+        def executescript(self, sql, *a, **k):
+            _sink("sqlite3.Cursor.executescript", sql)
+            return super().executescript(sql, *a, **k)
+
+    class Connection(sqlite3.Connection):
+        def cursor(self, factory=Cursor):
+            return super().cursor(factory)
+
+        def execute(self, sql, *a, **k):
+            _sink("sqlite3.Connection.execute", sql)
+            return super().execute(sql, *a, **k)
+
+        def executemany(self, sql, *a, **k):
+            _sink("sqlite3.Connection.executemany", sql)
+            return super().executemany(sql, *a, **k)
+
+        def executescript(self, sql, *a, **k):
+            _sink("sqlite3.Connection.executescript", sql)
+            return super().executescript(sql, *a, **k)
+
+    original_connect = sqlite3.connect
+
+    def connect(*a, **k):
+        k.setdefault("factory", Connection)
+        return original_connect(*a, **k)
+
+    sqlite3.connect = connect
+
+    original_open = builtins.open
+
+    def soc_open(file, *a, **k):
+        _sink("open", file)
+        return original_open(file, *a, **k)
+
+    builtins.open = soc_open
+
+    original_popen_init = subprocess.Popen.__init__
+
+    def popen_init(self, args, *a, **k):
+        _sink("subprocess.Popen", args)
+        return original_popen_init(self, args, *a, **k)
+
+    subprocess.Popen.__init__ = popen_init
+
+    original_system = os.system
+
+    def system(cmd):
+        _sink("os.system", cmd)
+        return original_system(cmd)
+
+    os.system = system
+
+
+# ------------------------------------------------------------------ calls + definitions
+
+def _profile(frame, event, arg):
+    if event != "call":
         return
+    code = frame.f_code
+    rel = _rel(code.co_filename)
+    if rel is None:
+        return
+    fn = f"{rel}:{getattr(code, 'co_qualname', code.co_name)}"
+    if fn not in _seen:
+        _seen.add(fn)
+        CALL_LOG.append({"ts": _now(), "fn": fn})
 
-    entry = {"ts": _now_ms(), "fn": fn_name}
-    if PROBE_INPUT and fn_name in SINK_FUNCS:
-        for value in frame.f_locals.values():
-            if isinstance(value, str) and PROBE_INPUT in value:
-                entry["arg_has_payload"] = True
-                break
-    CALL_LOG.append(entry)
 
-
-def _walk_defined() -> list[str]:
-    defined = []
-    for root, _, files in os.walk(APP_DIR):
+def _walk_defined() -> list:
+    out = []
+    skip = {".git", "__pycache__", ".venv", "venv", "node_modules", ".pytest_cache", "site-packages"}
+    for root, dirs, files in os.walk(APP_DIR):
+        dirs[:] = [d for d in dirs if d not in skip]
         for name in files:
             if not name.endswith(".py"):
                 continue
             path = os.path.join(root, name)
-            rel = os.path.relpath(path, APP_DIR)
-            mod = rel[: -len(".py")].replace(os.sep, ".")
-            if mod.endswith(".__init__"):
-                mod = mod[: -len(".__init__")]
+            rel = os.path.relpath(path, APP_DIR).replace(os.sep, "/")
             try:
-                tree = ast.parse(open(path).read())
-            except SyntaxError:
+                with builtins.open(path, encoding="utf-8", errors="replace") as fh:
+                    tree = ast.parse(fh.read())
+            except (SyntaxError, OSError, ValueError):
                 continue
-            for node in ast.walk(tree):
+            for node in tree.body:
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    defined.append(f"{mod}.{node.name}" if mod else node.name)
-    return defined
+                    out.append(f"{rel}:{node.name}")
+                elif isinstance(node, ast.ClassDef):
+                    for sub in node.body:
+                        if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            out.append(f"{rel}:{node.name}.{sub.name}")
+    return sorted(out)
 
 
-DEFINED = _walk_defined()
+def trace_payload() -> dict:
+    return {"http": HTTP_LOG, "calls": CALL_LOG, "defined": DEFINED}
 
-_patch_requests()
-_patch_httpx()
-sys.setprofile(_trace_calls)
+
+if HONEYPOT:
+    _patch_urllib()
+    _patch_requests()
+    _patch_httpx()
+if TRACE:
+    DEFINED.extend(_walk_defined())
+    _patch_sinks()
+    sys.setprofile(_profile)
+    threading.setprofile(_profile)

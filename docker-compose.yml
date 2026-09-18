@@ -1,21 +1,35 @@
+# Optional services. The core and web run on the host (see README); nothing here is needed for replay mode.
+#   docker compose up -d n8n          -> the control tower (USE_N8N=true), UI on :5678, import n8n/workflow.json
+#   docker compose up -d honeypot     -> honeypot on the sandbox network (USE_SANDBOX=true)
+#   cd core && uv run python -m sandbox.docker   -> builds the sandbox image + internal network
 services:
   n8n:
     image: n8nio/n8n:latest
     ports:
       - "5678:5678"
     env_file: .env
+    environment:
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false  # the workflow reads SLACK_WEBHOOK_URL from the environment
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # core runs on the host: set N8N_CALLBACK_BASE=http://host.docker.internal:8000
+    volumes:
+      - n8n_data:/home/node/.n8n
 
-  honeypot-fallback:
+  honeypot:
     build:
-      context: sandbox/honeypot_fallback
+      context: .
+      dockerfile: sandbox/honeypot.Dockerfile
     ports:
-      - "9000:8000"  # host-reachable: the harness's own http_get runs on the host, not in the sandbox
+      - "9000:8000"
     networks:
       - sandbox_net
-      - default  # sandbox_net is internal:true, which blocks published ports entirely
+      - default  # sandbox_net is internal:true, which blocks published ports on its own
 
 networks:
   sandbox_net:
     name: spatial-soc-sandbox-net
     driver: bridge
     internal: true
+
+volumes:
+  n8n_data:

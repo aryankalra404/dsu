@@ -1,4 +1,4 @@
-// MVP.md §6 — contracts are law. Field-for-field; do not add fields here, propose them in §6 first.
+// MVP.md §6 contracts, v4 (any repo, code city). Field-for-field with core/scene/state.py and core/orchestrator.py.
 
 export type ClaimType =
   | "stays_in_scope"
@@ -6,9 +6,36 @@ export type ClaimType =
   | "fetches_external"
   | "declares_capability"
   | "resists_probe"
-  | "reasons_on_input"; // §5, exactly six
+  | "reasons_on_input";
 
-export type ClaimSource = "llm" | "ast" | "human" | "agent" | "auto";
+export const CLAIM_TYPES: ClaimType[] = [
+  "stays_in_scope",
+  "no_churn",
+  "fetches_external",
+  "declares_capability",
+  "resists_probe",
+  "reasons_on_input",
+];
+
+export type ClaimSource = "llm" | "rules" | "ast" | "human" | "agent" | "auto";
+
+export type VerdictLabel = "REAL" | "FAKE" | "DEAD" | "DRIFT" | "VULN" | "INCONCLUSIVE";
+
+export interface VerdictHint {
+  kind: "HARDCODED_DATA" | "KEYWORD_MATCH" | "SWALLOWED_ERROR" | "STATIC_RETURN" | (string & {});
+  file: string;
+  line: number;
+  msg: string;
+}
+
+export interface Verdict {
+  claim_id: string;
+  verdict: VerdictLabel;
+  iteration: number;
+  rule: string;
+  evidence: { exec_ids: string[]; http_count: number | null; traj_seqs: number[]; outputs_distinct: number | null };
+  hints: VerdictHint[];
+}
 
 export interface Claim {
   id: string;
@@ -18,7 +45,7 @@ export interface Claim {
   axis: string | null;
   source: ClaimSource;
   confirmed: boolean;
-  verdict?: Verdict; // "…Claim with optional verdict…" in the scene snapshot
+  verdict?: Verdict;
 }
 
 export type EventKind = "read" | "write" | "cmd" | "http" | "exec" | "steer" | "pause" | "resume" | "done";
@@ -37,19 +64,25 @@ export interface TrajectoryEvent {
   seq: number;
   ts_ms: number;
   kind: EventKind;
-  path?: string; // read/write
-  content_hash?: string; // write
-  prev_hash?: string;
+  path?: string;
+  content_hash?: string;
+  prev_hash?: string | null;
   region?: [number, number];
-  cmd?: string; // cmd
+  revert?: boolean;
+  fact?: "scope_violation" | "revert" | null;
+  cmd?: string;
   exit?: number;
-  host?: string; // http
-  status?: number;
-  exec_id?: string; // exec
+  host?: string;
+  status?: number | null;
+  url?: string;
+  exec_id?: string;
   mode?: ExecMode;
-  in_scope?: boolean; // computed by core for read/write
+  reason?: string;
+  text?: string;
+  summary?: string;
+  in_scope?: boolean;
   drift: Drift;
-  node: string; // graph node id this event maps to (for the dot)
+  node?: string | null;
 }
 
 export interface TraceHttp {
@@ -57,11 +90,12 @@ export interface TraceHttp {
   method: string;
   host: string;
   path: string;
-  status: number;
+  status: number | null;
 }
 export interface TraceCall {
   ts: number;
   fn: string;
+  sink?: boolean;
   arg_has_payload?: boolean;
 }
 export interface Trace {
@@ -77,113 +111,224 @@ export interface Trace {
   calls: TraceCall[];
   defined: string[];
   stderr_tail: string;
+  sandbox?: "docker" | "subprocess";
+  sandbox_error?: boolean;
 }
-
-export type VerdictLabel = "REAL" | "FAKE" | "DEAD" | "DRIFT" | "VULN" | "INCONCLUSIVE" | "PENDING";
-
-export interface VerdictHint {
-  kind: string;
-  file: string;
-  line: number;
-  msg: string;
-}
-export interface Verdict {
-  claim_id: string;
-  verdict: VerdictLabel;
-  iteration: number;
-  rule: string;
-  evidence: {
-    exec_ids: string[];
-    http_count: number | null;
-    traj_seqs: number[];
-    outputs_distinct: number | null;
-  };
-  hints: VerdictHint[];
-}
-
-// ---- Scene snapshot — GET /runs/{id}/scene ----------------------------------
 
 export type Vec3 = [number, number, number];
 
-export interface SceneNode {
-  id: string;
+export interface Building {
+  id: string; // repo-relative file path
   label: string;
-  module: string;
-  pos: Vec3; // metres, right-handed, Y up, origin at table centre, 0.8 m cube
+  module: string; // directory it belongs to
+  district: string; // district it stands in ("~new" for new construction)
+  pos: Vec3; // base centre, metres
+  size: Vec3; // width, height, depth
+  loc: number;
+  lang: string;
   in_scope: boolean;
 }
-export interface SceneEdge {
+
+export interface District {
+  id: string;
+  label: string;
+  pos: Vec3;
+  size: [number, number]; // width, depth
+}
+
+export interface Edge {
   src: string;
   dst: string;
-  kind: "import" | "call" | (string & {});
+  kind: "import" | (string & {});
 }
-export type AgentState = "running" | "paused" | "done" | "killed";
-export interface SceneAgent {
-  node: string;
-  state: AgentState;
-  drift: number;
+
+export interface Graph {
+  nodes: Building[];
+  edges: Edge[];
+  districts: District[];
+  truncated: boolean;
 }
+
+export type AgentState = "idle" | "running" | "paused" | "done" | "killed";
+export type Phase =
+  | "extracting"
+  | "intent"
+  | "running"
+  | "paused"
+  | "checking"
+  | "fixing"
+  | "approve"
+  | "final"
+  | "error";
+export type GateWhich = "intent" | "pause" | "approve";
+export type FinalState = "merged" | "rejected" | "killed" | "max_iterations";
+
+export interface Gate {
+  which: GateWhich | null;
+  resume_url: string | null;
+  reason: string | null;
+}
+
 export interface TrailItem {
   seq: number;
-  node: string;
+  node: string | null;
   kind: EventKind;
   in_scope: boolean;
   revert: boolean;
 }
-export type GateWhich = "intent" | "pause" | "approve";
-export interface Gate {
-  which: GateWhich | null;
-  resume_url: string;
-}
+
 export interface Cursor {
   client: string;
-  kind: "head" | "mouse" | (string & {}); // §6 shows head + mouse; hands are sent by VR with their own kind strings
+  kind: "head" | "hand_l" | "hand_r" | "mouse" | (string & {});
   pos: number[];
   rot?: number[];
 }
-export interface SceneSnapshot {
-  graph: { nodes: SceneNode[]; edges: SceneEdge[] };
+
+export interface Scene {
+  run_id: string;
+  repo: string;
+  intent: string;
+  replay: string | null;
+  probe_entry: string | null;
+  happy_input: string | null;
+  github_pr: string | null;
+  phase: Phase;
+  graph: Graph;
+  scope: string[];
   scope_nodes: string[];
-  agent: SceneAgent;
+  agent: { node: string | null; state: AgentState; drift: number };
+  drift: Drift;
   trail: TrailItem[];
   claims: Claim[];
   gate: Gate;
   iteration: number;
   cursors: Cursor[];
+  scrub: number | null;
+  final: FinalState | null;
+  error: string | null;
+  notes: string[];
 }
 
-// ---- WebSocket /ws/runs/{run_id}, server → clients --------------------------
+export interface Patch {
+  iteration: number;
+  diff: string;
+  rationale: string;
+  source: "llm" | "recording" | "n8n" | (string & {});
+  files: string[];
+}
 
-export type FinalState = "merged" | "rejected" | "killed" | "max_iterations";
-export type Decision = "continue" | "steer" | "kill" | "approve" | "reject";
+export interface Decision {
+  which: GateWhich;
+  decision: string;
+  text?: string | null;
+  by: string;
+  at: number;
+}
+
+export interface Pause {
+  seq: number | null;
+  reason: string;
+  path: string | null;
+  at: number;
+}
+
+export interface RunDetail extends Scene {
+  events: TrajectoryEvent[];
+  traces: Trace[];
+  verdicts: Verdict[];
+  verdict_history: { iteration: number; verdicts: Verdict[] }[];
+  patches: Patch[];
+  decisions: Decision[];
+  pauses: Pause[];
+  summary: string | null;
+  created_at: number;
+  archived?: boolean;
+}
+
+export interface ExecSummary {
+  exec_id: string;
+  mode: ExecMode;
+  input: string;
+  running: boolean;
+  exit?: number;
+  output?: string;
+  http_count?: number;
+  calls_count?: number;
+  sandbox?: string;
+  error?: string | null;
+  http: TraceHttp[];
+  sinks: TraceCall[];
+}
 
 export type WsMessage =
-  | { t: "run_created"; run: Record<string, unknown> }
+  | { t: "run_created"; run: { run_id: string; repo: string; intent: string } }
+  | { t: "scene"; scene: Scene }
+  | { t: "phase"; phase: Phase }
   | { t: "claims"; claims: Claim[] }
+  | { t: "graph_patch"; nodes: Building[]; edges: Record<string, Edge[]> }
   | { t: "traj_event"; event: TrajectoryEvent }
-  | { t: "agent_state"; state: AgentState; reason?: string }
+  | { t: "agent_state"; state: AgentState; reason?: string | null }
   | { t: "exec_start"; exec_id: string; mode: ExecMode; input: string }
   | { t: "trace_event"; exec_id: string; kind: "http" | "call"; item: TraceHttp | TraceCall }
-  | { t: "exec_end"; exec_id: string; output: string }
+  | {
+      t: "exec_end";
+      exec_id: string;
+      output: string;
+      exit: number;
+      mode: ExecMode;
+      sandbox: string;
+      http_count: number;
+      calls_count: number;
+      error: string | null;
+    }
   | { t: "verdicts"; verdicts: Verdict[]; iteration: number }
-  | { t: "patch_proposed"; iteration: number; diff: string; rationale: string }
-  | { t: "gate"; which: GateWhich; resume_url: string }
-  | { t: "decision"; which: GateWhich; decision: Decision; text?: string; by: string }
+  | { t: "patch_proposed"; iteration: number; diff: string; rationale: string; source: string; files: string[] }
+  | { t: "gate"; which: GateWhich | null; resume_url: string | null; reason?: string | null }
+  | { t: "decision"; which: GateWhich; decision: string; text?: string | null; by: string }
   | { t: "cursors"; items: Cursor[] }
-  | { t: "select"; node: string; by: string }
-  | { t: "scrub"; seq: number; by: string }
-  | { t: "final"; state: FinalState };
+  | { t: "select"; node: string | null; by: string }
+  | { t: "scrub"; seq: number | null; by: string }
+  | { t: "final"; state: FinalState }
+  | { t: "note"; text: string }
+  | { t: "error"; message: string };
 
-// Clients → server over WS: presence only. Decisions go over HTTP.
 export type WsUpstream =
   | ({ t: "cursor" } & Cursor)
-  | { t: "select"; node: string }
-  | { t: "scrub"; seq: number };
+  | { t: "select"; node: string | null; by: string }
+  | { t: "scrub"; seq: number | null; by: string };
 
-// ---- HTTP bodies --------------------------------------------------------------
+export interface Recording {
+  name: string;
+  title: string;
+  intent: string;
+  repo: string;
+  recorded_with: string | null;
+  scope: string[];
+  probe_entry: string | null;
+}
 
-export interface DecisionBody {
-  which: GateWhich;
-  decision: Decision;
-  text?: string;
+export interface Flags {
+  USE_LLM: boolean;
+  USE_N8N: boolean;
+  USE_SANDBOX: boolean;
+  USE_BEECEPTOR: boolean;
+  model: string | null;
+  gates: "n8n" | "local";
+  sandbox: "docker" | "subprocess";
+}
+
+export interface HistoryRow {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  repo: string;
+  intent: string;
+  replay: string | null;
+  phase: Phase;
+  final: FinalState | null;
+  iteration: number;
+  claims: Claim[];
+  verdicts: Verdict[];
+  pauses: Pause[];
+  decisions: Decision[];
 }

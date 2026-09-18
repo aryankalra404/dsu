@@ -1,100 +1,181 @@
+"""End to end, offline: replay the real recorded runs through the whole pipeline -- intent gate, the harness
+loop, live pause on a scope violation, decisions, sandbox executions, verdicts, approval, audit."""
+
 import asyncio
-import json
-import shutil
-from pathlib import Path
 
-import harness.loop as loop_module
-from harness.control import Killed, RunControl
-from harness.loop import _tool_call_to_event_fields, run_agent
+import pytest
 
-FIXTURE = Path(__file__).resolve().parent.parent / "fixtures" / "repo_schemes"
-
-
-def _fresh_workdir(tmp_path: Path) -> Path:
-    workdir = tmp_path / "workdir"
-    shutil.copytree(FIXTURE, workdir)
-    return workdir
+import audit
+import config
+import orchestrator as orch
+import ws
+from scene.state import RUNS
 
 
-def test_replaying_clean_transcript_stays_in_scope(tmp_path, monkeypatch):
-    monkeypatch.setenv("USE_LLM", "false")
-    workdir = _fresh_workdir(tmp_path)
-    runs_dir = tmp_path / "runs"
+@pytest.fixture(autouse=True)
+def offline(tmp_path, monkeypatch):
+    for k, v in {"USE_LLM": False, "USE_N8N": False, "USE_SANDBOX": False, "RUNS_DIR": tmp_path / "runs",
+                 "AUDIT_DB": tmp_path / "audit.sqlite3", "REPLAY_MIN_GAP_S": 0, "REPLAY_MAX_GAP_S": 0,
+                 "PAUSE_RATE_LIMIT_S": 3600, "SLACK_WEBHOOK_URL": ""}.items():
+        monkeypatch.setattr(config, k, v)
+    monkeypatch.setattr(config, "HONEYPOT_BASE", "http://127.0.0.1:9/honeypot")  # nothing listens: no real egress
+    sent: list[dict] = []
 
-    asyncio.run(run_agent("t1", workdir, runs_dir, replay_run="clean"))
+    async def capture(run_id, msg):
+        sent.append(msg)
 
-    events = [
-        json.loads(line)
-        for line in (runs_dir / "t1" / "trajectory.jsonl").read_text().splitlines()
-    ]
-    assert events[-1]["kind"] == "done"
-    # the clean run only ever wrote under features/schemes/
-    assert all(e["drift"]["scope_violation"] is False for e in events)
-    assert {e["path"] for e in events if e["kind"] == "write"} == {
-        "features/schemes/__init__.py",
-        "features/schemes/finder.py",
-        "features/schemes/test_finder.py",
-    }
+    monkeypatch.setattr(orch, "broadcast", capture)
+    monkeypatch.setattr(ws, "broadcast", capture)
+    orch._last_pause.clear()
+    RUNS.clear()
+    return sent
 
 
-def test_replaying_drifting_transcript_flags_the_scope_violation(tmp_path, monkeypatch):
-    monkeypatch.setenv("USE_LLM", "false")
-    workdir = _fresh_workdir(tmp_path)
-    runs_dir = tmp_path / "runs"
-
-    asyncio.run(run_agent("t2", workdir, runs_dir, replay_run="drifting"))
-
-    events = [
-        json.loads(line)
-        for line in (runs_dir / "t2" / "trajectory.jsonl").read_text().splitlines()
-    ]
-    assert events[-1]["kind"] == "done"
-    assert events[-1]["drift"]["scope_violation"] is True
-    # the recorded drift: the feature landed beside features/schemes/, plus
-    # edits to files the intent said not to touch
-    out_of_scope_writes = {e["path"] for e in events if e["kind"] == "write" and not e["in_scope"]}
-    assert "features/scheme_finder.py" in out_of_scope_writes
-    assert "utils/helpers.py" in out_of_scope_writes
+async def _until(run, phase, timeout=90):
+    for _ in range(int(timeout * 20)):
+        if run.phase == phase:
+            return
+        if run.phase == "error":
+            raise AssertionError(run.error)
+        await asyncio.sleep(0.05)
+    raise AssertionError(f"run stuck in {run.phase}, wanted {phase}")
 
 
-def test_plain_text_ending_synthesizes_a_done_event(tmp_path, monkeypatch):
-    monkeypatch.setenv("USE_LLM", "false")
-    workdir = _fresh_workdir(tmp_path)
-    runs_dir = tmp_path / "runs"
+def test_drifting_recording_pauses_and_gets_verdicts(offline):
+    sent = offline
 
-    # Neither recorded run actually called the done() tool -- both finished with
-    # plain text -- so the synthesized done event is what every trajectory ends on.
-    monkeypatch.setattr(
-        loop_module, "_transcript_turns", lambda _run: [{"content": "All done, feature added."}]
-    )
+    async def scenario():
+        run = await orch.create_run("", "", replay="drifting")
+        await _until(run, "intent")
+        assert run.scope == ["features/schemes/**"]
+        assert {c["type"] for c in run.claims} >= {"stays_in_scope", "no_churn", "fetches_external"}
+        await orch.confirm_claims(run, run.claims, run.scope, run.probe_entry, None, "test")
 
-    messages = asyncio.run(run_agent("t3", workdir, runs_dir))
-    assert messages[-1] == {"role": "assistant", "content": "All done, feature added."}
+        await _until(run, "paused")
+        first_pause = run.pauses[0]
+        assert first_pause["reason"] == "scope_violation"
+        assert first_pause["path"] == "features/scheme_finder.py"  # the agent's first write landed outside scope
+        assert run.gate["which"] == "pause"
+        with pytest.raises(orch.PipelineError):
+            await orch.decision(run, "approve", "approve", None, "test")  # wrong gate
+        await orch.decision(run, "pause", "continue", None, "test")
 
-    events = [
-        json.loads(line)
-        for line in (runs_dir / "t3" / "trajectory.jsonl").read_text().splitlines()
-    ]
-    assert events[-1]["kind"] == "done"
-    assert events[-1]["summary"] == "All done, feature added."
+        await _until(run, "approve")
+        return run
+
+    run = asyncio.run(scenario())
+    kinds = [e["kind"] for e in run.events]
+    assert kinds.count("write") == 6 and "pause" in kinds and "resume" in kinds and kinds[-1] == "exec"
+    assert run.events[-1]["drift"]["scope_violation"] is True
+    new_node = next(m for m in sent if m["t"] == "graph_patch")["nodes"][0]
+    assert new_node["id"] == "features/scheme_finder.py"
+
+    v = {c["type"]: c["verdict"]["verdict"] for c in run.claims_with_verdicts() if c["source"] == "auto"}
+    assert v["stays_in_scope"] == "DRIFT"
+    assert v["no_churn"] == "REAL"
+    modes = [t["mode"] for t in run.traces]
+    assert modes.count("happy") == 1 and modes.count("probe") == 4
+    probe = next(c for c in run.claims_with_verdicts() if c["type"] == "resists_probe")
+    # the drifting agent rewrote db.py with a parameterised query, so the probes find no unescaped sink
+    assert probe["verdict"]["verdict"] == "REAL"
+    assert any(n.startswith("Fixer skipped") for n in run.notes)
+
+    asyncio.run(orch.decision(run, "approve", "approve", None, "test"))
+    assert run.final == "merged" and run.phase == "final"
+    row = next(r for r in audit.list_runs() if r["id"] == run.id)
+    assert row["final"] == "merged" and len(row["pauses"]) == 1
 
 
-def test_rejected_run_cmd_does_not_crash_event_mapping():
-    fields = _tool_call_to_event_fields(
-        "run_cmd", {"cmd": "ls"}, "error: command not allowlisted: ls"
-    )
-    assert fields == {"kind": "cmd", "cmd": "ls", "exit": 1}
+def test_clean_recording_never_pauses_and_kill_works(offline):
+    async def scenario():
+        run = await orch.create_run("", "", replay="clean")
+        await _until(run, "intent")
+        await orch.confirm_claims(run, run.claims, run.scope, run.probe_entry, None, "test")
+        await _until(run, "approve")
+        return run
+
+    run = asyncio.run(scenario())
+    assert run.pauses == []
+    by_type = {c["type"]: c["verdict"]["verdict"] for c in run.claims_with_verdicts() if c["source"] == "auto"}
+    assert by_type == {"stays_in_scope": "REAL", "no_churn": "REAL"}
+    probe = next(c for c in run.claims_with_verdicts() if c["type"] == "resists_probe")
+    # the clean agent left the example repo's unparameterised query in db.py untouched
+    assert probe["verdict"]["verdict"] == "VULN"
+
+    async def killed():
+        r = await orch.create_run("", "", replay="drifting")
+        await _until(r, "intent")
+        await orch.confirm_claims(r, r.claims, r.scope, r.probe_entry, None, "test")
+        await _until(r, "paused")
+        await orch.decision(r, "pause", "kill", None, "test")
+        for _ in range(200):
+            if r.final:
+                break
+            await asyncio.sleep(0.05)
+        return r
+
+    r = asyncio.run(killed())
+    assert r.final == "killed" and r.agent["state"] == "killed"
 
 
-def test_kill_raises_before_any_tool_executes(tmp_path, monkeypatch):
-    monkeypatch.setenv("USE_LLM", "false")
-    workdir = _fresh_workdir(tmp_path)
-    runs_dir = tmp_path / "runs"
-    control = RunControl()
-    control.kill()
+def test_live_run_requires_llm(offline):
+    with pytest.raises(orch.PipelineError):
+        asyncio.run(orch.create_run(".", "do something"))
 
-    try:
-        asyncio.run(run_agent("t2", workdir, runs_dir, control))
-        raise AssertionError("expected Killed")
-    except Killed:
-        pass
+
+def test_n8n_mode_protocol(offline, monkeypatch):
+    """USE_N8N=true: core never decides a gate itself; a stand-in for the n8n tree (MVP.md §7) calls back."""
+    import notify
+
+    monkeypatch.setattr(config, "USE_N8N", True)
+    calls: list[tuple[str, str]] = []
+    state: dict = {}
+
+    async def fake_n8n(payload):
+        run = state["run"]
+        ev = payload["event"]
+        calls.append(("event", ev))
+        if ev == "claims_extracted":
+            await orch.set_gate(run, "intent", "n8n://wait-intent")
+        elif ev == "traj_event" and payload["traj"].get("fact") and not state.get("paused_once"):
+            state["paused_once"] = True  # the workflow's Code node: one pause per 60 s per run
+            await orch.pause(run, payload["traj"]["fact"], "n8n://wait-pause")
+            return {"paused": True}
+        elif ev == "verdicts_ready":
+            assert payload["fixable"] is False  # no LLM, no recorded fix
+            await orch.open_approve(run, "n8n://wait-approve")
+        return {"ok": True}
+
+    async def fake_resume(url, body):
+        run = state["run"]
+        calls.append((url, body["decision"]))
+        if url == "n8n://wait-intent":
+            await orch.start(run)
+        elif url == "n8n://wait-pause":
+            await orch.agent_action(run, {"continue": "resume", "steer": "steer", "kill": "kill"}[body["decision"]],
+                                    body.get("text"))
+        elif url == "n8n://wait-approve":
+            await orch.finish(run, "merged" if body["decision"] == "approve" else "rejected")
+
+    monkeypatch.setattr(notify, "n8n", fake_n8n)
+    monkeypatch.setattr(notify, "resume_n8n", fake_resume)
+
+    async def scenario():
+        run = await orch.create_run("", "", replay="drifting")
+        state["run"] = run
+        await _until(run, "intent")
+        while run.gate["which"] != "intent":
+            await asyncio.sleep(0.02)
+        await orch.confirm_claims(run, run.claims, run.scope, run.probe_entry, None, "test")
+        await _until(run, "paused")
+        await orch.decision(run, "pause", "continue", None, "test")
+        await _until(run, "approve")
+        await orch.decision(run, "approve", "approve", None, "test")
+        return run
+
+    run = asyncio.run(scenario())
+    assert run.final == "merged"
+    assert ("n8n://wait-intent", "confirm") in calls
+    assert ("n8n://wait-pause", "continue") in calls
+    assert ("n8n://wait-approve", "approve") in calls
+    assert [c for c in calls if c[0] == "event"][0] == ("event", "claims_extracted")

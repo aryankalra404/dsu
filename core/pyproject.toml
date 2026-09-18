@@ -1,26 +1,39 @@
 [project]
 name = "core"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "Spatial SOC core: agent harness, trajectory recorder, checks, gates, scene"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.141.1",
-    "httpx>=0.28.1",
-    "networkx>=3.6.1",
-    "numpy>=2.4.6",
-    "openai>=3.14.1",
-    "pydantic>=2.13.5",
-    "python-dotenv>=1.2.3",
-    "uvicorn[standard]>=0.53.0",
+    "fastapi>=0.115",
+    "httpx>=0.27",
+    "networkx>=3.3",
+    "openai>=1.40",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+    "uvicorn[standard]>=0.30",
+    # the checks execute the supervised repo's test suite under the shim
+    "pytest>=8.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.1.1",
-    "ruff>=0.16.8",
-    "websockets>=17.1",
+    "ruff>=0.5",
+    "websockets>=12",
 ]
+# runtime deps of the bundled example repo (core/fixtures/repo_schemes), so its
+# recorded runs replay in subprocess-sandbox mode without Docker
+sample = [
+    "flask>=3.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "sample"]
+package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110

@@ -9,7 +9,11 @@
 > - v1: 3D review of AI security patches (taint path + blast radius + human gate). This is what we were shortlisted on.
 > - v2: added Unity/Quest 3 MR client, Next.js web client, cross-reality sync. Web is the product, VR complements.
 > - v2.1: deterministic-verdict principle, agent tool loop + iteration cap, n8n payload contract, PR status check.
-> - **v3 (current): the thing being supervised is no longer a single security patch. It is a coding agent's entire run,
+> - **v4 (18 Sep, current): any repo, light UI, code city.** Spatial SOC supervises an agent on *any* repo you point it at
+>   (local folder or git URL) -- nothing is wired to the scheme-finder sample any more; it is an optional recording. The
+>   city is a real code city (directories = districts, files = buildings, height = lines of code) laid out server-side.
+>   Web UI rebuilt in a light theme. §0.9 lists every contract change; where §3-§16 below disagree with §0.9, §0.9 wins.
+> - v3: the thing being supervised is no longer a single security patch. It is a coding agent's entire run,
 >   watched live.** Engine changed from static taint analysis to trajectory recording + behavioural checks.
 >   Absorbs the best of two sibling designs ("Polygraph": claims-vs-evidence, honeypots, deterministic verdicts;
 >   "Agent Auditor": hardcoding / dead-function hints). Name and theme unchanged: *Supervising AI Agent Actions in Real-Time.*
@@ -26,6 +30,32 @@
 6. **Everything runs offline on a laptop hotspot.** `USE_LLM=false` replays recorded runs and must produce the identical on-screen demo. Render is the URL on the slide, not the live demo.
 7. **Bounded claim, said out loud.** Spatial SOC proves when an agent drifted, faked a capability, or claimed something it didn't do. It does not prove the agent's code is correct. Say this on the landing page and in the pitch.
 8. **Scope is Python agents we harness ourselves.** We are not wrapping Claude Code, Cursor or arbitrary repos. See §3 OUT list. When in doubt: OUT list wins.
+
+### 0.9 What changed in v4 (contract deltas, all implemented in core + web; VR must mirror them)
+
+- **Any repo.** `POST /runs {repo, intent, replay?, probe_entry?, happy_input?, github_pr?}`; `repo` is a local folder or git URL,
+  copied/cloned into `core/runs/<id>/`. "Arbitrary repos" leaves the §3 OUT list. Non-Python repos get the city, trajectory,
+  scope/churn checks and gates; execution-based checks (3-5) need Python (pytest suite and/or a `module:function` probe
+  entrypoint) and are `INCONCLUSIVE` otherwise.
+- **Offline mode = recordings.** `USE_LLM=false` replays a recording (`core/fixtures/runs/<name>/{meta.json, transcript.json,
+  trajectory.jsonl}`) through the real harness: tool calls, checks, gates all execute. Any live run can be saved as a recording.
+  Without the LLM, claims are proposed by transparent keyword rules (`source: "rules"`) and the run says so.
+- **Graph = files.** Node ids are repo-relative file paths (not dotted modules). `graph = {nodes, edges, districts, truncated}`;
+  a node is `{id, label, module, district, pos:[x,0,z] (base centre), size:[w,h,d], loc, lang, in_scope}`; a district is
+  `{id, label, pos, size:[w,d]}`. Layout: squarified treemap of directories on a 0.8 m ground plane, buildings on lots,
+  spare lots + a "new construction" district so files created mid-run get a building without moving others.
+- **Snapshot** adds `run_id, repo, intent, replay, probe_entry, phase, scope, drift, scrub, final, error, notes`;
+  `agent.state` adds `idle`; `gate` adds `reason` and may be `{which: null}`. `GET /runs/{id}` returns the snapshot plus
+  `events, traces, verdicts, verdict_history, patches, decisions, pauses, summary`.
+- **TrajectoryEvent** write events carry `revert` and `fact` (`"scope_violation" | "revert" | null`) -- the pause trigger.
+- **New WS messages:** `scene` (full snapshot), `phase`, `graph_patch {nodes, edges:{src:[…]}}`, `note`, `error`;
+  `exec_end` carries `exit, mode, sandbox, http_count, calls_count`; `patch_proposed` carries `source, files`.
+- **n8n payload fix:** `traj_event` is `{"event":"traj_event","run_id","traj":{…},"drift"}` (the old example had two
+  `"event"` keys). `verdicts_ready` carries `fixable` (a FAKE/DEAD/VULN exists *and* a fix can be produced).
+- **DRIFT is not sent to the Fixer.** It is a fact about the trajectory that no patch can undo; the human judges it at HITL #2.
+- **Claim-of-work "added tests"** is `declares_capability` with `target: "tests"`.
+- **Drift terms:** `churn` = most rewrites of one file (writes - 1); `advisory` = share of reads outside scope.
+- **UI:** light theme (DESIGN.md v4). Web is still the complete product.
 
 ---
 
@@ -96,7 +126,7 @@ Both replay at 4× with `USE_LLM=false`. Live GPT run only if hotspot allows.
 
 ### Explicitly OUT (slide only — banned until H28)
 
-- Wrapping Claude Code / Cursor / Copilot. Arbitrary repos. Non-Python agents. Agents that spawn subprocesses, need a browser or a DB.
+- Wrapping Claude Code / Cursor / Copilot. Non-Python agents. Agents that spawn subprocesses, need a browser or a DB.
 - Proving correctness. LLM-as-judge on outputs. Semantic quality evaluation.
 - Static taint analysis as a verdict source (the v1 engine). AST hints are advisory only, attached under a failed behavioural check.
 - Multiple simultaneous agents or headsets. Phone AR. Voice input. Multi-agent parallel fixes. Confidence scoring overlays.
@@ -140,7 +170,7 @@ Both replay at 4× with `USE_LLM=false`. Live GPT run only if hotspot allows.
  6. agent calls done(summary)                       → LLM splits summary into claimed[] (source: "agent"), merged with confirmed claims
  7. core runs test executions in sandbox (happy, chaos, probe, N differential if enabled) → trace.json each; traj_event kind "exec"
  8. checks.compute_verdicts(claims, trajectory, traces) → verdicts[]; broadcast verdicts; → n8n {event: verdicts_ready, iteration}
- 9. n8n IF any FAKE|DEAD|DRIFT|VULN AND iteration < 3 → POST /agents/fix → Fixer diff → POST /runs/{id}/apply → back to 7 with iteration+1
+ 9. n8n IF any FAKE|DEAD|VULN (fixable) AND iteration < 3 → POST /agents/fix → Fixer diff → POST /runs/{id}/apply → back to 7 with iteration+1
     ELSE → POST /runs/{id}/gate {which: approve}; Wait #2
 10. human Approve / Reject (HITL #2)                → n8n: GitHub PR comment + commit status, Sheets/SQLite row, POST /runs/{id}/final
 ```
@@ -180,7 +210,7 @@ Each claim has exactly one type. Each type has exactly one deterministic rule. E
   "text": "calls the live gov schemes API",
   "target": "gov-schemes-api",          // honeypot host alias; null if n/a
   "axis": null,                          // reasons_on_input only, e.g. "income"
-  "source": "llm" | "ast" | "human" | "agent" | "auto",
+  "source": "llm" | "rules" | "ast" | "human" | "agent" | "auto",
   "confirmed": false                     // flipped by HITL #1
 }
 ```
@@ -238,7 +268,7 @@ Each claim has exactly one type. Each type has exactly one deterministic rule. E
   "cursors": [{"client": "vr-1", "kind": "head", "pos": [], "rot": []}, {"client": "web-1", "kind": "mouse", "pos": []}]
 }
 ```
-Layout is computed once per run on the server (`networkx.spring_layout(dim=3)` on the import/call graph; scope nodes pulled together and lifted). **Clients never run their own layout physics.** Coordinates: metres, right-handed, Y up, origin at table centre, graph in a 0.8 m cube; Unity flips Z on ingest.
+Layout is computed once per run on the server (v4: code-city treemap, see §0.9; new files get a building via `graph_patch`). **Clients never run their own layout physics.** Coordinates: metres, right-handed, Y up, origin at table centre, graph in a 0.8 m cube; Unity flips Z on ingest.
 
 ### WebSocket `/ws/runs/{run_id}`
 Server → clients (broadcast; cursors at 20 Hz, events immediately):
@@ -265,7 +295,7 @@ Clients → server over WS (presence only): `{"t":"cursor",…}`, `{"t":"select"
 ```jsonc
 // core → n8n   POST {N8N_WEBHOOK}/spatial-soc
 {"event":"claims_extracted","run_id":"r1","claims":[…],"callback":"http://core:8000"}
-{"event":"traj_event","run_id":"r1","event":{…},"drift":{…}}           // only fact-bearing events are forwarded
+{"event":"traj_event","run_id":"r1","traj":{…},"drift":{…}}           // only fact-bearing events are forwarded
 {"event":"agent_done","run_id":"r1","summary":"…"}
 {"event":"verdicts_ready","run_id":"r1","verdicts":[…],"iteration":0}
 // n8n → core
@@ -301,7 +331,7 @@ Webhook (POST /spatial-soc)
     │      (rate limit: one pause per 60 s per run so a burst of out-of-scope writes is one gate, not ten)
     ├─ agent_done → (no gate; core proceeds to executions)
     └─ verdicts_ready
-         → IF any verdict ∈ [FAKE, DEAD, DRIFT, VULN] AND iteration < 3
+         → IF fixable (any FAKE, DEAD, VULN and a fix can be produced) AND iteration < 3
          │    → POST core /agents/fix  →  POST core /runs/{id}/apply   (core re-runs executions, fires verdicts_ready with iteration+1)
          └─ ELSE
               → POST core /runs/{id}/gate {which:"approve"}
@@ -336,7 +366,7 @@ The iteration cap and the pause rule live in n8n, not core. `USE_N8N=false` make
   - **Centre:** R3F city. Nodes = modules/functions, edges = imports/calls, scope district lit, out-of-scope dim. **The agent dot** moves on `traj_event`; **trail** drawn behind it, red where `in_scope == false`, doubled-back segments drawn thicker (revert). Claim satellites around the scope district: grey → green/red. **Timeline scrubber** under the canvas (`seq` axis; shared via `scrub` WS so VR and web look at the same moment). Presence ghosts. One accent for "lit", red for fail, green for real, grey pending. No rainbow.
   - **Right:** tabs *Evidence* (trace table; differential outputs side by side; chaos vs happy diff; probe trace with the sink highlighted), *Patch* (diff viewer, rationale, iteration counter), *Gate* (context-sensitive: Confirm / Continue · Steer(text) · Kill / Approve · Reject). Keyboard: `Space` continue, `S` steer, `K` kill, `A` approve, `R` reject, `Esc` clear.
 - `/history` — every run: intent, claims, verdicts, pauses (count + reasons), iterations, decision, who/when, link.
-- Loading / empty / error states for every panel. Works with all four flags off. 1280 px projector-safe. Dark theme. Public read-only demo mode on Render.
+- Loading / empty / error states for every panel. Works with all four flags off. 1280 px projector-safe. Light theme (v4). Public read-only demo mode on Render.
 
 ---
 

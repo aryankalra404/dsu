@@ -23,7 +23,12 @@ vr/UserSettings/
 *.apk
 # docker / runtime
 core/fixtures/runs/**/out/
+core/runs/
+core/fix-scratch/
 *.sqlite
+*.sqlite3
 *.db
 # os
 .DS_Store
+# demo.sh runtime
+.demo/

@@ -1,86 +1,89 @@
 "use client";
+// seq-axis scrubber under the city. Scrub position is shared with every client (VR follows) via WS `scrub`.
+import { Radio } from "lucide-react";
 import { useMemo } from "react";
 import { color } from "@/lib/design";
-import { useRunStore } from "@/lib/store";
-import type { WsUpstream } from "@/lib/contracts";
+import { useRun } from "@/lib/store";
+import { sendUpstream } from "@/lib/useRun";
+import { cx } from "@/components/ui";
 
-/**
- * Timeline scrubber under the canvas (DESIGN.md → Motion → Scrub). Dragging sets scrubSeq locally and shares it
- * upstream so VR looks at the same moment; "Live" clears. Ticks: red where the event was out of scope.
- */
-export function Timeline({ send }: { send: (m: WsUpstream) => void }) {
-  const events = useRunStore((s) => s.events);
-  const trail = useRunStore((s) => s.trail);
-  const scrubSeq = useRunStore((s) => s.scrubSeq);
-  const scrubBy = useRunStore((s) => s.scrubBy);
-  const setScrub = useRunStore((s) => s.setScrub);
+export function Timeline() {
+  const events = useRun((s) => s.events);
+  const scrub = useRun((s) => s.scrub);
+  const scrubBy = useRun((s) => s.scrubBy);
+  const clientId = useRun((s) => s.clientId);
+  const max = events.at(-1)?.seq ?? 0;
 
-  // Range spans the snapshot trail and live events, so a client that joins mid-run still gets a full axis.
-  const { min, max } = useMemo(() => {
-    let lo = Infinity, hi = -Infinity;
-    for (const e of events) { lo = Math.min(lo, e.seq); hi = Math.max(hi, e.seq); }
-    for (const t of trail) { lo = Math.min(lo, t.seq); hi = Math.max(hi, t.seq); }
-    if (!Number.isFinite(lo)) return { min: 0, max: 0 };
-    return { min: lo, max: hi };
-  }, [events, trail]);
+  const ticks = useMemo(
+    () =>
+      events
+        .map((e) => {
+          if (e.fact) return { seq: e.seq, c: color.danger, h: 14 };
+          if (e.kind === "pause") return { seq: e.seq, c: color.danger, h: 18 };
+          if (e.kind === "steer") return { seq: e.seq, c: color.warn, h: 14 };
+          if (e.kind === "write") return { seq: e.seq, c: e.in_scope === false ? color.danger : color.accent, h: 9 };
+          if (e.kind === "exec") return { seq: e.seq, c: color.muted, h: 7 };
+          return { seq: e.seq, c: e.in_scope === false ? "#F4A3A6" : "#C7D2E3", h: 5 };
+        }),
+    [events],
+  );
 
-  const value = scrubSeq ?? max;
-  const live = scrubSeq === null;
-  const current = useMemo(() => events.find((e) => e.seq === value), [events, value]);
-
-  const onChange = (seq: number) => {
-    const s = seq >= max ? null : seq;
-    setScrub(s);
-    if (s !== null) send({ t: "scrub", seq: s });
+  const set = (seq: number | null) => {
+    useRun.getState().setScrub(seq);
+    sendUpstream({ t: "scrub", seq, by: clientId });
   };
+  const at = scrub ?? max;
+  const current = events.find((e) => e.seq === at);
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2">
+    <div className="flex items-center gap-3 px-4 py-3">
       <button
-        type="button"
-        onClick={() => { setScrub(null); }}
-        className="rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider"
-        style={{
-          borderColor: live ? color.accent : `${color.nodeDim}88`,
-          color: live ? color.accent : color.nodeDim,
-          boxShadow: live ? `0 0 8px ${color.accent}55` : "none",
-        }}
+        onClick={() => set(null)}
+        disabled={scrub === null}
+        className={cx(
+          "flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition",
+          scrub === null ? "border-accent/25 bg-accent-soft text-accent-strong" : "border-line bg-surface text-muted hover:text-ink",
+        )}
       >
-        {live ? "● live" : "live"}
+        <Radio className="size-3.5" /> Live
       </button>
-      <div className="relative flex-1">
-        {/* out-of-scope ticks */}
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 overflow-hidden">
-          {trail.map((t) =>
-            !t.in_scope && max > min && t.seq >= min && t.seq <= max ? (
+      <div className="relative min-w-0 flex-1">
+        <div className="pointer-events-none absolute inset-x-[8px] bottom-[13px] h-5">
+          {max > 0 &&
+            ticks.map((t) => (
               <span
                 key={t.seq}
-                className="absolute top-0 h-3 w-px"
-                style={{ left: `${((t.seq - min) / (max - min)) * 100}%`, background: color.danger, opacity: 0.8 }}
+                className="absolute bottom-0 w-[2px] -translate-x-1/2 rounded-full"
+                style={{ left: `${((t.seq - 1) / Math.max(max - 1, 1)) * 100}%`, height: t.h, background: t.c }}
               />
-            ) : null,
-          )}
+            ))}
         </div>
         <input
           type="range"
-          min={min}
-          max={max}
-          step={1}
-          value={value}
-          disabled={events.length === 0}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="soc-range relative w-full"
-          style={{ ["--soc-range-color" as string]: live ? color.accent : color.warn }}
-          aria-label="timeline"
+          className="soc-range relative mt-4"
+          min={1}
+          max={Math.max(max, 1)}
+          value={Math.max(at, 1)}
+          disabled={max === 0}
+          style={{ ["--soc-thumb" as string]: scrub === null ? color.accent : color.text }}
+          onChange={(e) => set(Number(e.target.value))}
         />
       </div>
-      <span className="w-36 truncate font-mono text-[11px] text-muted-foreground">
-        seq {value}
-        {current ? ` · ${current.kind}${current.path ? " " + current.path : current.cmd ? " " + current.cmd : ""}` : ""}
-      </span>
-      {!live && scrubBy && scrubBy !== "web-1" && (
-        <span className="font-mono text-[10px]" style={{ color: color.warn }}>scrubbed by {scrubBy}</span>
-      )}
+      <div className="w-[190px] shrink-0 text-right font-mono text-[11px] leading-tight text-muted">
+        {max === 0 ? (
+          "no events yet"
+        ) : (
+          <>
+            <div className="text-ink">
+              t = seq {at} <span className="text-faint">/ {max}</span>
+            </div>
+            <div className="truncate" title={current?.path ?? current?.cmd ?? ""}>
+              {current ? `${current.kind} ${current.path ?? current.cmd ?? current.host ?? ""}` : ""}
+              {scrub !== null && scrubBy && scrubBy !== clientId ? ` · by ${scrubBy}` : ""}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

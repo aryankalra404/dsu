@@ -1,67 +1,50 @@
 "use client";
-// Wires one run into the store: scene over HTTP, then events over WS (or the local fixture player).
-import { useEffect, useRef } from "react";
-import { getScene } from "@/lib/api";
+// Wires one run into the store: GET /runs/{id} (full detail), then the WebSocket. Resyncs on reconnect.
+import { useEffect } from "react";
+import { api } from "@/lib/api";
 import { connectRun, type RunSocket } from "@/lib/ws";
-import { loadLocalEvents, loadLocalScene, playLocal } from "@/lib/localReplay";
-import { useRunStore, type Source } from "@/lib/store";
+import { useRun } from "@/lib/store";
 import type { WsUpstream } from "@/lib/contracts";
 
-export function useRun(runId: string, source: Source) {
-  const socketRef = useRef<RunSocket | null>(null);
+let socket: RunSocket | null = null;
 
+/** Presence upstream (cursor | select | scrub). No-op while disconnected. */
+export function sendUpstream(msg: WsUpstream) {
+  socket?.send(msg);
+}
+
+export function useRunConnection(runId: string) {
   useEffect(() => {
-    const store = useRunStore.getState();
-    store.reset(runId, source);
-    store.setSceneStatus("loading");
+    const store = useRun.getState();
+    store.reset(runId);
     let cancelled = false;
-    let stopLocal: (() => void) | null = null;
 
-    let effective = source;
-    (async () => {
+    const resync = async () => {
       try {
-        let scene;
-        if (source === "local") scene = await loadLocalScene();
-        else {
-          try {
-            scene = await getScene(runId);
-          } catch (coreErr) {
-            // Core unreachable → local fixture, announced in the header (CLAUDE.md: stubs say so).
-            console.warn("core unreachable, falling back to local fixture:", coreErr);
-            effective = "local";
-            useRunStore.getState().setSource("local", true);
-            scene = await loadLocalScene();
-          }
-        }
-        if (cancelled) return;
-        useRunStore.getState().setScene(scene);
-      } catch (err) {
-        if (cancelled) return;
-        useRunStore.getState().setSceneStatus("error", err instanceof Error ? err.message : String(err));
-        return;
+        const d = await api.detail(runId);
+        if (!cancelled) useRun.getState().load(d);
+        return d;
+      } catch (e) {
+        if (!cancelled) useRun.getState().setLoadError(e instanceof Error ? e.message : String(e));
+        return null;
       }
+    };
 
-      if (effective === "local") {
-        const events = await loadLocalEvents();
-        if (cancelled) return;
-        useRunStore.getState().setWsStatus("open");
-        stopLocal = playLocal(events, (m) => useRunStore.getState().apply(m)).stop;
-      } else {
-        socketRef.current = connectRun(runId, {
-          onMessage: (m) => useRunStore.getState().apply(m),
-          onStatus: (st) => useRunStore.getState().setWsStatus(st),
-        });
-      }
+    (async () => {
+      const d = await resync();
+      if (cancelled || !d || d.archived) return; // an archived run has no live stream
+      socket = connectRun(
+        runId,
+        (m) => useRun.getState().apply(m),
+        (s) => useRun.getState().setWs(s),
+        () => void resync(),
+      );
     })();
 
     return () => {
       cancelled = true;
-      stopLocal?.();
-      socketRef.current?.close();
-      socketRef.current = null;
+      socket?.close();
+      socket = null;
     };
-  }, [runId, source]);
-
-  // Presence upstream (cursor | select | scrub). No-op on the local player.
-  return (msg: WsUpstream) => socketRef.current?.send(msg);
+  }, [runId]);
 }

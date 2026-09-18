@@ -1,119 +1,255 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+// The code city (MVP.md §9 centre column). Directories are districts, files are buildings (height = lines of code),
+// the lit plate is the confirmed scope, the dot is the agent, arcs over the roofs are its trajectory.
+// Every position comes from the server; this component only renders and reports presence.
+import { ContactShadows, Html, OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Box3, BoxGeometry, Vector3 } from "three";
-import { Grid, OrbitControls } from "@react-three/drei";
 import type { ComponentRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Box3, Vector3 } from "three";
+import { Layers, Maximize2 } from "lucide-react";
+import type { Building } from "@/lib/contracts";
+import { color, motion } from "@/lib/design";
+import { useRun } from "@/lib/store";
+import { sendUpstream } from "@/lib/useRun";
+import { pathInScope } from "@/lib/glob";
+import { buildingStates, roof, visibleTrail } from "@/components/city/cityMath";
+import { BuildingOutline, Buildings } from "@/components/city/Buildings";
+import { Ground, ScopeDistrict } from "@/components/city/Ground";
+import { AgentDot, Ghosts, Imports, Satellites, Trail } from "@/components/city/Movement";
+import { cx } from "@/components/ui";
 
-type OrbitControlsImpl = ComponentRef<typeof OrbitControls>;
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
-import { atmosphere, color, geom } from "@/lib/design";
-import { useRunStore } from "@/lib/store";
-import { Nodes } from "@/components/city/Nodes";
-import { Edges } from "@/components/city/Edges";
-import { ScopeDistrict } from "@/components/city/ScopeDistrict";
-import { AgentDot } from "@/components/city/AgentDot";
-import { Trail } from "@/components/city/Trail";
+type Controls = ComponentRef<typeof OrbitControls>;
 
-/** The R3F city. Units are metres, same 0.8 m cube the headset shows; positions come from the server only. */
-export function City() {
-  const cube = useMemo(() => new BoxGeometry(geom.cube, geom.cube, geom.cube), []);
+export function City({ previewScope }: { previewScope?: string[] | null }) {
+  const scene = useRun((s) => s.scene);
+  const events = useRun((s) => s.events);
+  const scrub = useRun((s) => s.scrub);
+  const selected = useRun((s) => s.selected);
+  const hovered = useRun((s) => s.hovered);
+  const clientId = useRun((s) => s.clientId);
+  const graphVersion = useRun((s) => s.graphVersion);
+  const [allImports, setAllImports] = useState(false);
+  const [frameKey, setFrameKey] = useState(0);
+
+  const nodes = useMemo(() => {
+    const ns = scene?.graph.nodes ?? [];
+    if (!previewScope) return ns;
+    return ns.map((n) => ({ ...n, in_scope: pathInScope(n.id, previewScope) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphVersion, previewScope, scene?.graph.nodes]);
+  const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  const scope = useMemo(() => new Set(nodes.filter((n) => n.in_scope).map((n) => n.id)), [nodes]);
+  const states = useMemo(() => buildingStates(events, scrub), [events, scrub]);
+  const stops = useMemo(() => visibleTrail(scene?.trail ?? [], scrub), [scene?.trail, scrub]);
+
+  const dotNode = scrub !== null ? (stops.at(-1)?.node ?? null) : (scene?.agent.node ?? null);
+  const focus = selected ?? hovered;
+  const dimmed = useMemo(() => {
+    if (!focus || allImports) return null;
+    const s = new Set<string>([focus]);
+    for (const e of scene?.graph.edges ?? []) {
+      if (e.src === focus) s.add(e.dst);
+      if (e.dst === focus) s.add(e.src);
+    }
+    return s.size > 1 ? s : null;
+  }, [focus, allImports, scene?.graph.edges]);
+
+  if (!scene) return null;
+  const hoveredB = hovered ? byId.get(hovered) : undefined;
+  const selectedB = selected ? byId.get(selected) : undefined;
+
+  const select = (id: string | null) => {
+    useRun.getState().select(id);
+    sendUpstream({ t: "select", node: id, by: clientId });
+  };
+
   return (
-    <Canvas
-      dpr={[1, 2]}
-      camera={{ position: [0.9, 0.55, 1.1], fov: 40, near: 0.01, far: 20 }}
-      gl={{ antialias: true, alpha: false }}
-      onCreated={({ gl }) => gl.setClearColor(color.bg, 1)}
-    >
-      <fog attach="fog" args={[color.bg, atmosphere.fogNear, atmosphere.fogFar]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[1, 2, 1.5]} intensity={1.0} />
-      <Controls />
-      <group>
-        <Edges />
-        <ScopeDistrict />
-        <Nodes />
-        <Trail />
-        <AgentDot />
-      </group>
-      {/* DESIGN.md → Atmosphere: floor grid in edge-dim at the bottom of the cube. */}
-      <Grid
-        position={[0, atmosphere.gridY, 0]}
-        args={[4, 4]}
-        cellSize={atmosphere.gridCell}
-        cellThickness={0.6}
-        cellColor={color.edgeDim}
-        sectionSize={atmosphere.gridSection}
-        sectionThickness={1}
-        sectionColor={color.edgeDim}
-        fadeDistance={atmosphere.gridFade}
-        fadeStrength={1.5}
-        infiniteGrid
-      />
-      {/* 0.8 m bounding cube, DESIGN.md geometry sanity reference. Barely visible on purpose. */}
-      <lineSegments>
-        <edgesGeometry args={[cube]} />
-        <lineBasicMaterial color={color.edgeDim} transparent opacity={0.2} />
-      </lineSegments>
-      <EffectComposer multisampling={4}>
-        <Bloom
-          luminanceThreshold={atmosphere.bloomThreshold}
-          luminanceSmoothing={0.2}
-          intensity={atmosphere.bloomIntensity}
-          radius={atmosphere.bloomRadius}
-          mipmapBlur
+    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-[linear-gradient(180deg,#F9FBFE_0%,#EEF2F8_100%)]">
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        camera={{ position: [0.72, 0.62, 0.86], fov: 36, near: 0.005, far: 30 }}
+        onPointerMissed={() => select(null)}
+      >
+        <fog attach="fog" args={["#EEF2F8", 2.2, 5]} />
+        <hemisphereLight args={["#ffffff", "#dfe5ee", 1.05]} />
+        <directionalLight
+          position={[0.55, 1.25, 0.35]}
+          intensity={1.5}
+          castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-left={-0.6}
+          shadow-camera-right={0.6}
+          shadow-camera-top={0.6}
+          shadow-camera-bottom={-0.6}
+          shadow-camera-near={0.1}
+          shadow-camera-far={3}
+          shadow-bias={-0.0004}
         />
-      </EffectComposer>
-    </Canvas>
+        <directionalLight position={[-0.8, 0.6, -0.5]} intensity={0.35} />
+        <CameraRig nodes={nodes} selected={selectedB ?? null} frameKey={frameKey} />
+
+        <Ground districts={scene.graph.districts} nodes={nodes} />
+        <ScopeDistrict nodes={nodes} scope={scope} />
+        <Buildings
+          nodes={nodes}
+          states={states}
+          hovered={hovered}
+          selected={selected}
+          dimmed={dimmed}
+          onHover={(id) => useRun.getState().hover(id)}
+          onSelect={(id) => select(id)}
+        />
+        {selectedB && <BuildingOutline b={selectedB} tone={color.accent} />}
+        {hoveredB && hoveredB.id !== selected && <BuildingOutline b={hoveredB} tone={color.muted} />}
+        <Imports edges={scene.graph.edges} byId={byId} focus={focus} all={allImports} />
+        <Trail stops={stops} byId={byId} final={scene.final} />
+        <AgentDot
+          node={dotNode}
+          byId={byId}
+          state={scene.agent.state}
+          label={dotNode && scene.agent.state !== "idle" ? dotNode : null}
+          scrubbing={scrub !== null}
+        />
+        <Satellites claims={scene.claims} scopeNodes={nodes.filter((n) => n.in_scope)} />
+        <Ghosts cursors={scene.cursors} self={clientId} />
+        <PresencePlane clientId={clientId} onClear={() => select(null)} />
+        {hoveredB && <Tooltip b={hoveredB} reads={states.get(hoveredB.id)?.reads ?? 0} writes={states.get(hoveredB.id)?.writes ?? 0} />}
+        <ContactShadows position={[0, -0.0205, 0]} scale={1.4} blur={2.6} opacity={0.35} far={0.3} />
+      </Canvas>
+
+      {nodes.length === 0 && (
+        <div className="absolute inset-0 grid place-items-center text-sm text-muted">This repo has no files to map.</div>
+      )}
+      <Legend />
+      <div className="absolute top-3 right-3 flex gap-1.5">
+        <ToolButton active={allImports} onClick={() => setAllImports((v) => !v)} title="Show all import edges">
+          <Layers className="size-3.5" /> imports
+        </ToolButton>
+        <ToolButton onClick={() => setFrameKey((k) => k + 1)} title="Re-frame the city">
+          <Maximize2 className="size-3.5" />
+        </ToolButton>
+      </div>
+      {scene.graph.truncated && (
+        <div className="absolute top-3 left-3 rounded-md border border-warn/25 bg-warn-soft px-2 py-1 text-[11px] text-warn">
+          large repo: showing the first files only
+        </div>
+      )}
+    </div>
   );
 }
 
-/**
- * OrbitControls + DESIGN.md camera rules: auto-frame the node bounding box once per scene, idle-orbit
- * slowly until the user touches the canvas, `F` focuses the selected node (600 ms), no other auto moves.
- */
-function Controls() {
-  const controls = useRef<OrbitControlsImpl>(null);
+function ToolButton({ active, onClick, title, children }: {
+  active?: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={cx(
+        "flex h-7 items-center gap-1 rounded-lg border px-2 text-[11px] font-medium shadow-sm backdrop-blur transition",
+        active ? "border-accent/30 bg-accent-soft text-accent-strong" : "border-line bg-white/80 text-muted hover:text-ink",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Legend() {
+  const items: [string, string][] = [
+    [color.building, "file"],
+    [color.buildingScope, "in scope"],
+    [color.buildingTouched, "agent wrote (in scope)"],
+    [color.danger, "agent wrote (out of scope)"],
+  ];
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line bg-white/85 px-2.5 py-1.5 text-[11px] text-muted shadow-sm backdrop-blur">
+      {items.map(([c, l]) => (
+        <span key={l} className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-sm" style={{ background: c }} />
+          {l}
+        </span>
+      ))}
+      <span className="flex items-center gap-1.5">
+        <span className="size-2.5 rounded-full" style={{ background: color.accent }} /> agent
+      </span>
+      <span className="text-faint">height = lines of code</span>
+    </div>
+  );
+}
+
+function Tooltip({ b, reads, writes }: { b: Building; reads: number; writes: number }) {
+  return (
+    <Html position={roof(b, 0.012)} center style={{ pointerEvents: "none" }} zIndexRange={[30, 20]}>
+      <div className="-translate-y-6 rounded-lg border border-line bg-white px-2.5 py-1.5 text-[11px] whitespace-nowrap shadow-[var(--shadow-pop)]">
+        <div className="font-mono font-semibold text-ink">{b.id}</div>
+        <div className="mt-0.5 flex gap-2 text-muted">
+          <span>{b.loc} loc</span>
+          <span>{b.lang}</span>
+          <span className={b.in_scope ? "text-accent" : ""}>{b.in_scope ? "in scope" : "out of scope"}</span>
+          {reads + writes > 0 && (
+            <span>
+              {reads}r · {writes}w
+            </span>
+          )}
+        </div>
+      </div>
+    </Html>
+  );
+}
+
+/** Auto-frame once per load (and on demand), idle orbit until touched, F focuses the selection, Esc clears. */
+function CameraRig({ nodes, selected, frameKey }: { nodes: Building[]; selected: Building | null; frameKey: number }) {
+  const controls = useRef<Controls>(null);
   const camera = useThree((s) => s.camera);
-  const scene = useRunStore((s) => s.scene);
-  const selected = useRunStore((s) => s.selected);
   const touched = useRef(false);
-  const focusTarget = useRef<Vector3 | null>(null);
+  const framed = useRef(-1);
+  const focusTo = useRef<{ from: Vector3; to: Vector3; t0: number } | null>(null);
 
-  // Auto-frame once per scene.
   useEffect(() => {
-    if (!scene || !controls.current) return;
+    if (!controls.current || !nodes.length || framed.current === frameKey) return;
+    framed.current = frameKey;
     const box = new Box3();
-    for (const n of scene.graph.nodes) box.expandByPoint(new Vector3().fromArray(n.pos));
-    if (box.isEmpty()) return;
-    const center = box.getCenter(new Vector3());
-    const size = box.getSize(new Vector3()).length() || geom.cube;
-    const dist = Math.max(0.55, size * 0.95);
-    controls.current.target.copy(center);
-    camera.position.set(center.x + dist * 0.75, center.y + dist * 0.45, center.z + dist * 0.9);
-    camera.lookAt(center);
+    for (const n of nodes) {
+      box.expandByPoint(new Vector3(n.pos[0] - n.size[0] / 2, 0, n.pos[2] - n.size[2] / 2));
+      box.expandByPoint(new Vector3(n.pos[0] + n.size[0] / 2, n.size[1], n.pos[2] + n.size[2] / 2));
+    }
+    const c = box.getCenter(new Vector3());
+    const r = Math.max(box.getSize(new Vector3()).length(), 0.3);
+    controls.current.target.set(c.x, 0.02, c.z);
+    camera.position.set(c.x + r * 0.78, r * 0.72, c.z + r * 0.95);
     controls.current.update();
-  }, [scene, camera]);
+  }, [nodes, camera, frameKey]);
 
-  // F → focus selected node (DESIGN motion.cameraFocus). Only the target eases; distance stays.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== "f" || !scene || !selected) return;
-      const n = scene.graph.nodes.find((x) => x.id === selected);
-      if (n) focusTarget.current = new Vector3().fromArray(n.pos);
+      if ((e.target as HTMLElement)?.closest("input,textarea")) return;
+      if (e.key.toLowerCase() === "f" && selected && controls.current) {
+        focusTo.current = { from: controls.current.target.clone(), to: roof(selected, 0), t0: performance.now() };
+      }
+      if (e.key === "Escape") {
+        useRun.getState().select(null);
+        useRun.getState().setScrub(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [scene, selected]);
+  }, [selected]);
 
   useEffect(() => {
-    const c = controls.current;
-    if (!c) return;
     let raf = 0;
     const tick = () => {
-      if (focusTarget.current) {
-        c.target.lerp(focusTarget.current, 0.12);
-        if (c.target.distanceTo(focusTarget.current) < 0.0005) focusTarget.current = null;
+      const f = focusTo.current;
+      if (f && controls.current) {
+        const t = Math.min((performance.now() - f.t0) / motion.cameraFocus, 1);
+        controls.current.target.lerpVectors(f.from, f.to, 1 - Math.pow(1 - t, 3));
+        controls.current.update();
+        if (t >= 1) focusTo.current = null;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -124,18 +260,39 @@ function Controls() {
   return (
     <OrbitControls
       ref={controls}
+      makeDefault
       enableDamping
       dampingFactor={0.08}
-      minDistance={0.3}
-      maxDistance={4}
+      minDistance={0.15}
+      maxDistance={3}
+      maxPolarAngle={Math.PI * 0.46}
       autoRotate={!touched.current}
-      autoRotateSpeed={(60 / atmosphere.idleOrbitSecondsPerRev) * 2} // drei: 2.0 == 30 s/rev
+      autoRotateSpeed={(60 / motion.idleOrbitSecondsPerRev) * 2 * 0.5}
       onStart={() => {
-        if (!touched.current && controls.current) {
-          touched.current = true;
-          controls.current.autoRotate = false;
-        }
+        touched.current = true;
+        if (controls.current) controls.current.autoRotate = false;
       }}
     />
+  );
+}
+
+/** Invisible ground plane that reports this client's pointer to the other clients (<= 20 Hz). */
+function PresencePlane({ clientId, onClear }: { clientId: string; onClear: () => void }) {
+  const last = useRef(0);
+  return (
+    <mesh
+      rotation-x={-Math.PI / 2}
+      position={[0, 0.0001, 0]}
+      onClick={onClear}
+      onPointerMove={(e) => {
+        const now = performance.now();
+        if (now - last.current < 50) return;
+        last.current = now;
+        sendUpstream({ t: "cursor", client: clientId, kind: "mouse", pos: [e.point.x, e.point.y + 0.01, e.point.z] });
+      }}
+    >
+      <planeGeometry args={[1.2, 1.2]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
   );
 }

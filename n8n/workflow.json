@@ -1,0 +1,1010 @@
+{
+  "name": "Spatial SOC — control tower",
+  "nodes": [
+    {
+      "id": "b4ba0a78-8fad-5d8e-b066-e0ef08ecbbc4",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "spatial-soc",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "4ce84df0-014b-5a5f-b5f1-148b89d24ee6",
+      "name": "Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "claims_extracted"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "claims_extracted"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "traj_event"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "traj_event"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "agent_done"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "agent_done"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "verdicts_ready"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "verdicts_ready"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "851cd069-2121-5c00-aebf-fbf234ac97d6",
+      "name": "Gate: intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/gate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ which: \"intent\", resume_url: $execution.resumeUrl }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "daf23eb6-a04f-5f68-80a2-81dfe6f5224b",
+      "name": "Ack claims",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        80
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d3485b55-f792-5c37-86d3-8eaf04e34d5c",
+      "name": "Slack: claims",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: `${$('Webhook').item.json.body.run_id}: ${$('Webhook').item.json.body.claims.length} claims + scope extracted — confirm to start` }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "14faffd3-2922-511d-b581-1ae6028cd94d",
+      "name": "Wait #1 (HITL intent)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        80
+      ],
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      }
+    },
+    {
+      "id": "c453761a-52cc-5be8-ada6-c87a358869c1",
+      "name": "Start agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/start",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      }
+    },
+    {
+      "id": "86fe5371-6d46-5d61-9f08-1648f5a42a3f",
+      "name": "Pause rate limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        360
+      ],
+      "parameters": {
+        "jsCode": "// one pause per 60 s per run (MVP.md §7): a burst of out-of-scope writes is one gate, not ten\nconst s = $getWorkflowStaticData('global');\nconst body = $('Webhook').item.json.body;\nconst now = Date.now();\nconst last = (s.lastPause || {})[body.run_id] || 0;\nconst fact = body.traj && body.traj.fact;\nconst pause = !!fact && now - last > 60000;\nif (pause) { s.lastPause = { ...(s.lastPause || {}), [body.run_id]: now }; }\nreturn [{ json: { pause, fact: fact || null, path: body.traj ? body.traj.path : null } }];"
+      }
+    },
+    {
+      "id": "472c5a7e-add9-52f0-b2d9-b77f98b6c369",
+      "name": "Fact → pause?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.pause }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a489a2ea-f3f5-5a2d-bf73-e20c5ed6945e",
+      "name": "Gate: pause",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/gate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ which: \"pause\", reason: $json.fact, resume_url: $execution.resumeUrl }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "52ecf910-6b2f-5d2e-8baa-27a280b20561",
+      "name": "Ack paused",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"paused\": true}",
+        "options": {}
+      }
+    },
+    {
+      "id": "502c6527-6dce-551b-b162-f5c88385464d",
+      "name": "Slack: paused",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: `${$('Webhook').item.json.body.run_id} PAUSED: agent wrote ${$('Webhook').item.json.body.traj.path} (${$('Webhook').item.json.body.traj.fact})` }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "fb24f265-b12e-55be-b860-9f6f750aeb8c",
+      "name": "Wait (live HITL)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        300
+      ],
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      }
+    },
+    {
+      "id": "61eeda12-1c6a-54e5-9ced-1e17bfac09b0",
+      "name": "Decision",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1780,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.decision }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "continue"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "continue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.decision }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "steer"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "steer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.decision }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "kill"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "kill"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c5aedc91-4b5b-521a-bafc-9399047225a6",
+      "name": "Agent: resume",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/agent",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\": \"resume\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "1bf4d199-1a15-59e7-b314-87bc56bcd34f",
+      "name": "Agent: steer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        320
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/agent",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: \"steer\", text: $json.body.text }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5d1b7674-00e9-5dab-ae82-e2ae43be2e6e",
+      "name": "Agent: kill",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/agent",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\": \"kill\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f183f8f0-cfda-5a00-8dab-1bc3e6ba0847",
+      "name": "Final: killed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/final",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"state\": \"killed\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f5e024cc-550e-55cd-a85d-71c516139e8e",
+      "name": "Ack no pause",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        440
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"paused\": false}",
+        "options": {}
+      }
+    },
+    {
+      "id": "c3b14a1e-a30f-56fb-997f-3f47d9711037",
+      "name": "Ack done",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        560
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      }
+    },
+    {
+      "id": "cc5ca19a-990b-5a8e-8403-7624a9742d02",
+      "name": "Ack verdicts",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        760
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\": true}",
+        "options": {}
+      }
+    },
+    {
+      "id": "ef3914be-9cbc-507b-86ce-ea7a8f1dcbd4",
+      "name": "Fixable and iteration < 3?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        760
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Webhook').item.json.body.fixable }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "leftValue": "={{ $('Webhook').item.json.body.iteration }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              },
+              "rightValue": 3
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c98012b0-9817-5ce5-8772-ea9833241bbc",
+      "name": "Fixer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/agents/fix",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ run_id: $('Webhook').item.json.body.run_id }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "81cec5fb-0683-5989-9f09-2cdf83d9efc8",
+      "name": "Apply patch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/apply",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ diff: $json.diff, rationale: $json.rationale }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "3fd926b6-56bc-5319-915a-7d6b50ed6625",
+      "name": "Gate: approve",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        840
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/gate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ which: \"approve\", resume_url: $execution.resumeUrl }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "c4f9af64-7e1d-58c1-82e1-be09b6533e2f",
+      "name": "Slack: ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        840
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: `${$('Webhook').item.json.body.run_id} ready: ${$('Webhook').item.json.body.verdicts.filter(v => v.verdict === \"REAL\").length}/${$('Webhook').item.json.body.verdicts.length} REAL after ${$('Webhook').item.json.body.iteration} iterations` }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "9b02ad35-ad42-578b-a679-85d67baa8712",
+      "name": "Wait #2 (HITL approve)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        840
+      ],
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      }
+    },
+    {
+      "id": "d92e2b82-07e4-532d-9ab5-436a3230c39f",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        840
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.decision }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "approve"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "15aec519-5c6a-5f75-b4f0-c8f50238251a",
+      "name": "Final: merged",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        780
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/final",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"state\": \"merged\"}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9b6dc96-f586-5ba5-beb6-ef3f25e2a315",
+      "name": "Final: rejected",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        900
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').item.json.body.callback }}/runs/{{ $('Webhook').item.json.body.run_id }}/final",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"state\": \"rejected\"}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Event": {
+      "main": [
+        [
+          {
+            "node": "Gate: intent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pause rate limit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ack done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ack verdicts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: intent": {
+      "main": [
+        [
+          {
+            "node": "Ack claims",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack claims": {
+      "main": [
+        [
+          {
+            "node": "Slack: claims",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: claims": {
+      "main": [
+        [
+          {
+            "node": "Wait #1 (HITL intent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait #1 (HITL intent)": {
+      "main": [
+        [
+          {
+            "node": "Start agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause rate limit": {
+      "main": [
+        [
+          {
+            "node": "Fact → pause?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fact → pause?": {
+      "main": [
+        [
+          {
+            "node": "Gate: pause",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ack no pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: pause": {
+      "main": [
+        [
+          {
+            "node": "Ack paused",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack paused": {
+      "main": [
+        [
+          {
+            "node": "Slack: paused",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: paused": {
+      "main": [
+        [
+          {
+            "node": "Wait (live HITL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait (live HITL)": {
+      "main": [
+        [
+          {
+            "node": "Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision": {
+      "main": [
+        [
+          {
+            "node": "Agent: resume",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent: steer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent: kill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: kill": {
+      "main": [
+        [
+          {
+            "node": "Final: killed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack verdicts": {
+      "main": [
+        [
+          {
+            "node": "Fixable and iteration < 3?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixable and iteration < 3?": {
+      "main": [
+        [
+          {
+            "node": "Fixer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gate: approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixer": {
+      "main": [
+        [
+          {
+            "node": "Apply patch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate: approve": {
+      "main": [
+        [
+          {
+            "node": "Slack: ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: ready": {
+      "main": [
+        [
+          {
+            "node": "Wait #2 (HITL approve)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait #2 (HITL approve)": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Final: merged",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Final: rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "note": "MVP.md §7. Needs env SLACK_WEBHOOK_URL in the n8n container and N8N_BLOCK_ENV_ACCESS_IN_NODE=false. GitHub PR comment/status: add a GitHub node after 'Final: merged' with your credential (or let core post it with USE_N8N=false)."
+  }
+}

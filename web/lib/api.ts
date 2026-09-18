@@ -1,6 +1,6 @@
-// HTTP only. Decisions and claim confirmation go here, never over the WebSocket (MVP.md §6).
+// HTTP to the core. Decisions and claim confirmation go here, never over the WebSocket (MVP.md §6).
 import { CORE_BASE_URL } from "@/lib/env";
-import type { Claim, DecisionBody, SceneSnapshot } from "@/lib/contracts";
+import type { Claim, Flags, HistoryRow, Recording, RunDetail, Scene } from "@/lib/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -12,20 +12,52 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!CORE_BASE_URL) throw new ApiError(0, "NEXT_PUBLIC_CORE_BASE_URL is not set");
-  const res = await fetch(`${CORE_BASE_URL}${path}`, {
-    ...init,
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new ApiError(res.status, `${init?.method ?? "GET"} ${path} → ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(`${CORE_BASE_URL}${path}`, {
+      ...init,
+      headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(0, `Core is not reachable at ${CORE_BASE_URL}. Start it with: cd core && uv run python main.py`);
+  }
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      const body = await res.json();
+      detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail ?? body);
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(res.status, detail);
+  }
   return (await res.json()) as T;
 }
 
-export const getScene = (id: string) => request<SceneSnapshot>(`/runs/${id}/scene`);
+const post = <T>(path: string, body: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body) });
 
-export const postDecision = (id: string, body: DecisionBody) =>
-  request<unknown>(`/runs/${id}/decision`, { method: "POST", body: JSON.stringify(body) });
-
-export const confirmClaims = (id: string, claims: Claim[]) =>
-  request<unknown>(`/runs/${id}/claims/confirm`, { method: "POST", body: JSON.stringify({ claims }) });
+export const api = {
+  flags: () => request<Flags>("/flags"),
+  recordings: () => request<Recording[]>("/recordings"),
+  runs: () => request<HistoryRow[]>("/runs"),
+  scene: (id: string) => request<Scene>(`/runs/${id}/scene`),
+  detail: (id: string) => request<RunDetail>(`/runs/${id}`),
+  agentDiff: (id: string) => request<{ diff: string }>(`/runs/${id}/diff`),
+  createRun: (body: {
+    repo?: string;
+    intent?: string;
+    replay?: string | null;
+    probe_entry?: string | null;
+    happy_input?: string | null;
+    github_pr?: string | null;
+  }) => post<{ run_id: string }>("/runs", body),
+  confirm: (
+    id: string,
+    body: { claims: Claim[]; scope: string[]; probe_entry: string | null; happy_input: string | null; by: string },
+  ) => post<{ ok: true }>(`/runs/${id}/claims/confirm`, body),
+  decision: (id: string, body: { which: string; decision: string; text?: string; by: string }) =>
+    post<{ ok: true }>(`/runs/${id}/decision`, body),
+  saveRecording: (id: string, name: string, title?: string) =>
+    post<{ saved: string }>(`/runs/${id}/save-recording`, { name, title }),
+};

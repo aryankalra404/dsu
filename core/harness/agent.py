@@ -1,184 +1,123 @@
-import os
+"""The agent-under-watch's tools (MVP.md §11): read_file, write_file, run_cmd, http_get, done. They operate on
+the run's workdir. The system prompt is the intent, verbatim -- nothing about being watched."""
+
+import re
 import subprocess
-import sys
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 import httpx
 
-ALLOWED_CMD_PREFIXES = ("pytest",)
+import config
+from repo import read_text, resolve_inside
+from sandbox.executor import python_for_repo, shim_env
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read a file's contents from the repo.",
-            "parameters": {
-                "type": "object",
-                "properties": {"path": {"type": "string"}},
-                "required": ["path"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "Write (overwrite) a file's contents in the repo.",
-            "parameters": {
-                "type": "object",
-                "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
-                "required": ["path", "content"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "run_cmd",
-            "description": "Run an allowlisted shell command in the repo.",
-            "parameters": {
-                "type": "object",
-                "properties": {"cmd": {"type": "string"}},
-                "required": ["cmd"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "http_get",
-            "description": "GET a URL (routed through the honeypot).",
-            "parameters": {
-                "type": "object",
-                "properties": {"url": {"type": "string"}},
-                "required": ["url"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "done",
-            "description": "Signal the task is complete.",
-            "parameters": {
-                "type": "object",
-                "properties": {"summary": {"type": "string"}},
-                "required": ["summary"],
-            },
-        },
-    },
+MAX_READ_CHARS = 60_000
+ALLOWED_CMDS = ("pytest", "python", "pip")
+SHELL_CHAINING = re.compile(r"[;&|`$<>]")
+
+AGENT_TOOLS = [
+    {"type": "function", "function": {
+        "name": "read_file", "description": "Read a file from the repo.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "write_file", "description": "Create or overwrite a file in the repo with the full new content.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                       "required": ["path", "content"]}}},
+    {"type": "function", "function": {
+        "name": "run_cmd", "description": "Run a command in the repo root. Allowed: pytest, python, pip.",
+        "parameters": {"type": "object", "properties": {"cmd": {"type": "string"}}, "required": ["cmd"]}}},
+    {"type": "function", "function": {
+        "name": "http_get", "description": "HTTP GET a URL and return the status and body.",
+        "parameters": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}},
+    {"type": "function", "function": {
+        "name": "done", "description": "Finish the task with a summary of what you did.",
+        "parameters": {"type": "object", "properties": {"summary": {"type": "string"}}, "required": ["summary"]}}},
 ]
 
 
-def load_system_prompt(workdir: Path) -> str:
-    """Intent travels with the run's own workdir (MVP.md §6: POST /runs {repo, intent})."""
-    intent_path = workdir / "SPATIAL_SOC.md"
-    lines = [
-        line
-        for line in intent_path.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
-    return "\n".join(lines).strip()
-
-
-def _resolve(workdir: Path, path: str) -> Path | None:
-    target = (workdir / path).resolve()
-    if not str(target).startswith(str(workdir.resolve())):
-        return None
-    return target
-
-
 def read_file(workdir: Path, path: str) -> str:
-    target = _resolve(workdir, path)
+    target = resolve_inside(workdir, path)
     if target is None:
         return "error: path escapes the repo"
-    if not target.exists():
+    if not target.is_file():
         return f"error: no such file: {path}"
-    return target.read_text()
+    text = read_text(target)
+    return text if len(text) <= MAX_READ_CHARS else text[:MAX_READ_CHARS] + "\n... [truncated]"
+
+
+def file_hash_before(workdir: Path, path: str) -> str | None:
+    from harness.trajectory import sha1
+
+    target = resolve_inside(workdir, path)
+    return sha1(read_text(target)) if target is not None and target.is_file() else None
 
 
 def write_file(workdir: Path, path: str, content: str) -> str:
-    target = _resolve(workdir, path)
+    target = resolve_inside(workdir, path)
     if target is None:
         return "error: path escapes the repo"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content)
+    target.write_text(content, encoding="utf-8", newline="")
     return "ok"
 
 
-def _normalize_cmd(cmd: str, python: str) -> str:
-    """Bare `pytest` doesn't add the repo root to sys.path the way `python -m
-    pytest` does, so a fixture's own `from db import ...`-style imports fail."""
-    if cmd.strip().startswith("pytest"):
-        return cmd.replace("pytest", f"{python} -m pytest", 1)
-    return cmd
+def _normalize_cmd(cmd: str, python: str) -> list[str] | str:
+    parts = cmd.strip().split()
+    head = parts[0]
+    if head == "pytest":
+        return [python, "-m", "pytest", *parts[1:]]
+    if head in ("python", "python3"):
+        return [python, *parts[1:]]
+    if head in ("pip", "pip3"):
+        return [python, "-m", "pip", *parts[1:]]
+    return "error"
 
 
-def _run_cmd_subprocess(workdir: Path, cmd: str) -> tuple[int, str]:
-    result = subprocess.run(
-        _normalize_cmd(cmd, sys.executable),
-        shell=True, cwd=workdir, capture_output=True, text=True, timeout=30,
-    )
-    return result.returncode, result.stdout + result.stderr
-
-
-def _run_cmd_docker(workdir: Path, cmd: str) -> tuple[int, str]:
-    # Deliberately NOT on SANDBOX_NETWORK: that network is internal (item 5's
-    # exploit-probe isolation) and has no route to PyPI, so `pip install` here
-    # would silently fail. The agent's own dev-loop test runs aren't adversarial
-    # -- they just need container/filesystem isolation, not network isolation.
-    full_cmd = f"pip install -q -r requirements.txt pytest 2>/dev/null; {_normalize_cmd(cmd, 'python')}"
-    result = subprocess.run(
-        [
-            "docker", "run", "--rm",
-            "-v", f"{workdir}:/app",
-            "-w", "/app",
-            "python:3.11-slim", "bash", "-c", full_cmd,
-        ],
-        capture_output=True, text=True, timeout=90,
-    )
-    return result.returncode, result.stdout + result.stderr
-
-
-def run_cmd(workdir: Path, cmd: str) -> str:
-    if not any(cmd.strip().startswith(prefix) for prefix in ALLOWED_CMD_PREFIXES):
-        return f"error: command not allowlisted: {cmd}"
-    use_sandbox = os.getenv("USE_SANDBOX", "false").lower() == "true"
-    exit_code, output = (
-        _run_cmd_docker(workdir, cmd) if use_sandbox else _run_cmd_subprocess(workdir, cmd)
-    )
-    return f"exit={exit_code}\n{output}"
-
-
-def http_get(url: str) -> str:
-    parsed = urlparse(url)
-    alias = parsed.hostname or ""
-    honeypot_base = (os.getenv("HONEYPOT_BASE") or "http://localhost:9000").rstrip("/")
-    forward_url = f"{honeypot_base}/{alias}{parsed.path}"
-    if parsed.query:
-        forward_url += f"?{parsed.query}"
+def run_cmd(workdir: Path, cmd: str) -> tuple[int, str]:
+    stripped = cmd.strip()
+    head = stripped.split()[0] if stripped else ""
+    if head.rstrip("3") not in ALLOWED_CMDS or SHELL_CHAINING.search(stripped):
+        return 126, f"error: command not allowed: {cmd} (allowed: {', '.join(ALLOWED_CMDS)}; no chaining)"
+    argv = _normalize_cmd(stripped, python_for_repo())
+    if argv == "error":
+        return 126, f"error: command not allowed: {cmd}"
+    if config.USE_SANDBOX:
+        argv = ["docker", "run", "--rm", "-v", f"{workdir}:/app", "-w", "/app", config.SANDBOX_IMAGE,
+                "bash", "-c", "pip install -q -r requirements.txt >/dev/null 2>&1; " + stripped.replace("pytest", "python -m pytest", 1)]
+        env = None
+    else:
+        env = shim_env(workdir, trace=False)
     try:
-        resp = httpx.get(forward_url, timeout=10)
-        return f"status={resp.status_code}\n{resp.text[:2000]}"
-    except Exception as e:
-        return f"error: {e}"
+        r = subprocess.run(argv, cwd=workdir, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=config.EXEC_TIMEOUT_S, env=env)
+    except subprocess.TimeoutExpired:
+        return 124, f"timed out after {config.EXEC_TIMEOUT_S:.0f}s"
+    out = (r.stdout + r.stderr)[-6000:]
+    return r.returncode, out
 
 
-def done(summary: str) -> str:
-    return "ok"
+def http_get(url: str) -> tuple[int | None, str, str]:
+    """Returns (status, host, body). Always routed through the honeypot (MVP.md §8)."""
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    if not host:
+        return None, "", f"error: not a URL: {url}"
+    forward = f"{config.HONEYPOT_BASE}/{host}{parts.path or '/'}" + (f"?{parts.query}" if parts.query else "")
+    try:
+        r = httpx.get(forward, timeout=10)
+        return r.status_code, host, r.text[:4000]
+    except httpx.HTTPError as e:
+        return None, host, f"error: {e}"
 
 
-def execute_tool(name: str, args: dict, workdir: Path) -> str:
-    if name == "read_file":
-        return read_file(workdir, args["path"])
-    if name == "write_file":
-        return write_file(workdir, args["path"], args["content"])
-    if name == "run_cmd":
-        return run_cmd(workdir, args["cmd"])
-    if name == "http_get":
-        return http_get(args["url"])
-    if name == "done":
-        return done(args["summary"])
-    return f"error: unknown tool: {name}"
+def system_prompt(intent: str) -> str:
+    return intent.strip()
+
+
+def first_user_message(files: list[str], truncated: bool) -> str:
+    tree = "\n".join(files)
+    more = "\n... (tree truncated)" if truncated else ""
+    return f"Repo file tree:\n{tree}{more}"
+
+

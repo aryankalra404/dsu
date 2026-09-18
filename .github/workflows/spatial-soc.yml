@@ -1,0 +1,46 @@
+# Re-checks an agent's PR with the Spatial SOC engine (MVP.md §3). Gates are skipped in CI.
+# The PR must contain .spatial-soc/run.json -- the run record saved by Spatial SOC (GET /runs/{id}).
+# The job fails (red check) when any claim is FAKE / DEAD / DRIFT / VULN, and posts the claims table as a comment.
+name: spatial-soc
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  verdicts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the PR
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Checkout Spatial SOC
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SPATIAL_SOC_REPO || github.repository }}
+          path: soc
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install the supervised repo's dependencies
+        working-directory: soc/core
+        run: |
+          uv sync
+          if [ -f ../../pr/requirements.txt ]; then uv pip install -r ../../pr/requirements.txt; fi
+
+      - name: Run the checks
+        id: checks
+        if: hashFiles('pr/.spatial-soc/run.json') != ''
+        working-directory: soc/core
+        run: uv run python ci.py --repo ../../pr --run ../../pr/.spatial-soc/run.json --out ../../report.md
+
+      - name: Post the claims table
+        if: always() && hashFiles('report.md') != ''
+        env:
+          GH_TOKEN: ${{ secrets.SOC_GITHUB_TOKEN || github.token }}
+        run: gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file report.md
