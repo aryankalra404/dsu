@@ -34,13 +34,13 @@
 - [x] Posted team-chat message and LAN URL under STATUS.md → Shared. Commit `core: ws hub + replay`.
 
 ## 5. Sandbox image (45 min, timebox — see §8 fallback)
-- [ ] `sandbox/Dockerfile` (python:3.11-slim, `/app`, installs `requirements.txt` + `polygraph_shim/`).
-- [ ] `sandbox/polygraph_shim/sitecustomize.py`: patch `requests`/`httpx`, `sys.setprofile` filtered to `/app`, `ast` walk for `defined`, write `/out/trace.json`. HTTP host rewrite to `HONEYPOT_BASE/{alias}/…` (fallback to local if empty).
-- [ ] `sandbox/runner.py`: runs `app.run(argv[1])`, writes output/exit/duration.
-- [ ] `core/sandbox/docker.py`: `build()`, `run(mode, input) -> Trace`.
-- [ ] `docker compose` with `core`, `n8n`, `honeypot-fallback` (tiny FastAPI serving canned JSON). **MANUAL: Docker Desktop must be running — ask if `docker info` fails.**
-- [ ] Network isolation: try a compose network where only `honeypot-fallback` is reachable. **If not working by minute 45, take the MVP.md §8 fallback and log it in `plans/decisions.md`.**
-- [ ] Commit `core: sandbox + shim`.
+- [x] `sandbox/Dockerfile` (python:3.11-slim, `/app`, installs `requirements.txt` + `polygraph_shim/`).
+- [x] `sandbox/polygraph_shim/sitecustomize.py`: patch `requests`/`httpx`, `sys.setprofile` filtered to `/app` (both `call` and `c_call`, so C-implemented sinks like `sqlite3.Cursor.execute`/`open` are actually caught), `ast` walk for `defined`, write `/out/trace.json`. HTTP host rewrite to `HONEYPOT_BASE/{alias}/…` (fallback to local `honeypot-fallback` service if empty). Dropped the stale `ANTHROPIC_BASE_URL` from MVP.md §8 per the OpenAI-only decision — only `OPENAI_BASE_URL` is set.
+- [x] `sandbox/runner.py`: runs `app.run(argv[1])`, writes output/exit/duration.
+- [x] `core/sandbox/docker.py`: `build()`, `run(mode, input) -> Trace`.
+- [x] `docker compose` with `n8n`, `honeypot-fallback` (tiny FastAPI serving canned JSON). Docker Desktop confirmed running. (`core` itself is not containerized — it runs via `uv run` on the host, as already verified in item 4; not adding an unbuilt/untested core Dockerfile.)
+- [x] Network isolation: compose network `spatial-soc-sandbox-net` (`internal: true`) — verified the sandbox container reaches `honeypot-fallback` but a raw socket to `8.8.8.8` is refused ("Network is unreachable"). Worked well within the timebox.
+- [x] Commit `core: sandbox + shim`.
 
 ## 6. Agent harness (40 min)
 - [ ] `core/harness/loop.py`: ~60-line function-calling loop over `client.chat.completions.create(model=OPENAI_MODEL, messages, tools, tool_choice="auto")`: while `finish_reason == "tool_calls"` → for each call: gate check → execute → append `{"role":"tool","tool_call_id":…}` → repeat; stop on `done` tool or plain assistant text; cap 60 turns. Persist the full `messages` list as the transcript.

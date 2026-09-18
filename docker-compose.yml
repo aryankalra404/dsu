@@ -1,0 +1,18 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    env_file: .env
+
+  honeypot-fallback:
+    build:
+      context: sandbox/honeypot_fallback
+    networks:
+      - sandbox_net
+
+networks:
+  sandbox_net:
+    name: spatial-soc-sandbox-net
+    driver: bridge
+    internal: true

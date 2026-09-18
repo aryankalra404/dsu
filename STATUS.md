@@ -7,10 +7,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Core (person 1)
 - **Gate:** H4 in progress
-- **Done:** items 0–4 of `plans/core-H4.md` — bootstrap, fixture repo, scene layout + snapshot, handwritten trajectories, WS hub + replay server. Replay server verified: streams the 25-event drifting trajectory in order, loops so late joiners still see it, `select`/`scrub`/`cursor` WS behavior matches §6. **Web and VR are unblocked.**
-- **In progress:** item 5 — sandbox image (Docker)
-- **Blocked / manual pending:** `OPENAI_API_KEY`/`OPENAI_MODEL` still needed in `.env` before item 6
-- **Next:** `plans/core-H4.md` item 5 (sandbox), then 6 (harness), then 7 (record real runs)
+- **Done:** items 0–5 of `plans/core-H4.md` — bootstrap, fixture repo, scene layout + snapshot, handwritten trajectories, WS hub + replay server, sandbox image. **Web and VR are unblocked** (replay server up). Sandbox verified live: `spatial-soc-sandbox-net` isolates the container (honeypot-fallback reachable, `8.8.8.8` refused), exploit-probe sink detection correctly flags the vulnerable `cur.execute(...)` call and not the parameterized ones, chaos mode wired.
+- **In progress:** item 6 — agent harness (needs `OPENAI_API_KEY`)
+- **Blocked / manual pending:** `OPENAI_API_KEY`/`OPENAI_MODEL` needed in `.env` before item 6 can actually call the LLM (item 6's `USE_LLM=false` replay path doesn't need it)
+- **Next:** `plans/core-H4.md` item 6 (harness), then 7 (record real runs)
 - **For Web:** —
 - **For VR:** —
 
