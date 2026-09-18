@@ -6,7 +6,6 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 ---
 
 ## Core (person 1)
-- **Gate:** H4 in progress
 - **Gate:** H4 items 0–7 all done
 - **Done:** all of `plans/core-H4.md`. Fixtures under `core/fixtures/runs/` are now **real recorded GPT-5.5 runs** (clean + drifting), not handwritten — the drifting one genuinely drifted on the first attempt (wrote `app.py`, `db.py`, `utils/helpers.py`, feature landed at `features/scheme_finder.py`; drift 46.67). `USE_LLM=false` replays those transcripts for real. Sandbox isolated + verified (honeypot reachable, `8.8.8.8` refused; SQLi probe hits the unparameterised `cur.execute` with `arg_has_payload`). Replay server verified against the real trajectory. `core/tests` green (6 tests).
 - **In progress:** —
@@ -16,19 +15,19 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **For VR:** —
 
 ## Web (person 2 — do first each gate)
-- **Gate:** H4 not started
-- **Done:** scaffold only
-- **In progress:** —
+- **Gate:** H4 in progress
+- **Done:** item 3 city — R3F canvas (metres, 0.8 m cube), instanced nodes sized by fan_in, one LineSegments for edges, padded convex-hull district with 4 s breathing, agent dot with 400 ms ease-out queue (state commits instantly), trail with danger/accent segments + doubled revert, scrub-aware; loading/empty/error states on the centre panel; verified headless on `?replay=local` (screenshots); item 2 shared fixture `web/fixtures/{scene.json,events.jsonl}` (16 nodes / 20 edges / 20 events, §5 claim types, drift by the §5 formula) served by `/api/fixtures/*`; `?replay=local` plays it at 4× through the store with pause/steer/resume companions; item 1 contracts (`web/lib/contracts.ts` §6 field-for-field incl. trail in_scope/revert), zustand store with per-message reducers + fan_in helper, native WS with backoff, HTTP api (getScene/postDecision/confirmClaims); item 0 bootstrap — Next 15.5 + TS strict + Tailwind 4 + shadcn (radix) + R3F/drei/framer/zustand; dark-only layout, Inter/JetBrains Mono, DESIGN tokens in `web/lib/design.ts` + `soc-*` Tailwind colours; `/runs/[id]` 1280 px three-column frame; `.env.local` in place (gitignored)
+- **In progress:** — (web 0–3 done; switching to VR 0–3 per the agreed order)
 - **Blocked / manual pending:** —
-- **Next:** `plans/web-H4.md` items 0–3 on local fixture; swap to Core replay when posted
-- **For Core:** —
+- **Next:** after VR 0–3: web item 4 chrome (claims list, drift meter, timeline, state pill), item 5 point at Core replay when the URL is in Shared
+- **For Core:** snapshot `trail[]` items now carry `in_scope` + `revert` (§6, committed 18 Sep) — the replay server's `GET /runs/demo/scene` should emit them, copied from the matching TrajectoryEvent.
 - **For VR:** —
 
 ## VR (person 2 — after the web target; person 3 builds/tests on device)
 - **Gate:** H4 not started
-- **Done:** Unity project cleaned and moved to `vr/` (Quest passthrough + hands rig kept, circuit assets removed, Socket.IO → NativeWebSocket, MCP bridge configured)
+- **Done:** Unity project cleaned and moved to `vr/` (Quest passthrough + hands rig kept, circuit assets removed, Socket.IO → NativeWebSocket, MCP bridge configured). 18 Sep: scene stripped via MCP and saved as `Assets/SpatialSOC/Scene/SpatialSOC.unity` (item 0 editor half).
 - **In progress:** —
-- **Blocked / manual pending:** scene strip (For Ops above); headset model confirmed?; Dev mode + adb on person 3's laptop?
+- **Blocked / manual pending:** build settings + Project Setup Tool (For Ops below); headset model confirmed?; Dev mode + adb on person 3's laptop?
 - **Next:** `plans/vr-H4.md` items 0–2; first device build last
 - **For Core:** need laptop LAN IP for the headset once the hotspot is up
 - **For Web:** —
@@ -41,7 +40,13 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **Next:** `plans/ops.md` in order
 
 ## For Ops — manual steps waiting (person 2 writes click-by-click lists here; person 3 ticks them)
-- [ ] **Strip the Unity scene** — see `plans/vr-H4.md` item 0 for the exact list of objects to delete, then Save As `Assets/SpatialSOC/Scene/SpatialSOC.unity`, set as scene 0, Project Setup Tool → Fix All, commit `vr: clean scene`.
+- [ ] **Unity build settings + project setup** (scene strip already done via MCP — `Assets/SpatialSOC/Scene/SpatialSOC.unity` exists):
+  1. Pull `main`. Open `vr/` in Unity Hub with **6000.3.2f1**. Wait for packages to resolve (NativeWebSocket + Newtonsoft download on first open).
+  2. Project window → open `Assets/SpatialSOC/Scene/SpatialSOC.unity`. Hierarchy should show exactly: `Directional Light`, `Global Volume`, `[BuildingBlock] Camera Rig`, `[BuildingBlock] Passthrough`, `EventSystem`. If anything else is there, tell person 2 — don't delete it yourself.
+  3. File → Build Profiles (Unity 6) → Scene List: click **Add Open Scenes**; untick/remove `Assets/Scenes/SampleScene`; drag `SpatialSOC` to index 0.
+  4. Menu Meta → Tools → **Project Setup Tool** → Android tab → **Fix All**, then **Apply All** in Recommended. Repeat until no red items.
+  5. Project window → `Assets/Oculus/OculusProjectConfig.asset` → Inspector: Passthrough Support = **Required** (or Supported), Hand Tracking Support = **Controllers and Hands**. Ctrl/Cmd-S.
+  6. Commit from `vr/`: `git add Assets/SpatialSOC ProjectSettings && git commit -m "vr: build settings + project setup"`, push. Write "done" in the Ops block.
 
 ---
 
