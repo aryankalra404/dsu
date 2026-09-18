@@ -7,10 +7,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Core (person 1)
 - **Gate:** H4 in progress
-- **Done:** item 0 bootstrap (`core: bootstrap`); item 1 fixture repo (`core: fixture repo`); item 2 scene layout + snapshot (`core: scene layout + snapshot`); item 3 handwritten trajectories — 25-event `drifting/trajectory.jsonl` (scope violation → revert → failing tests → dead-end http → done) and 15-event `clean/trajectory.jsonl`, marked HANDWRITTEN in sibling README (`core: handwritten fixture trajectories`)
-- **In progress:** item 4 — WS hub + replay server (unblocks Web/VR)
-- **Blocked / manual pending:** Docker Desktop confirmed running; `OPENAI_API_KEY`/`OPENAI_MODEL` still needed in `.env` before item 6
-- **Next:** `plans/core-H4.md` item 4, publish replay server, post URL in team chat
+- **Done:** items 0–4 of `plans/core-H4.md` — bootstrap, fixture repo, scene layout + snapshot, handwritten trajectories, WS hub + replay server. Replay server verified: streams the 25-event drifting trajectory in order, loops so late joiners still see it, `select`/`scrub`/`cursor` WS behavior matches §6. **Web and VR are unblocked.**
+- **In progress:** item 5 — sandbox image (Docker)
+- **Blocked / manual pending:** `OPENAI_API_KEY`/`OPENAI_MODEL` still needed in `.env` before item 6
+- **Next:** `plans/core-H4.md` item 5 (sandbox), then 6 (harness), then 7 (record real runs)
 - **For Web:** —
 - **For VR:** —
 
@@ -45,7 +45,7 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 ---
 
 ## Shared
-- **Replay server URL:** (Core posts here) `http://<LAN-IP>:8000` · WS `ws://<LAN-IP>:8000/ws/runs/demo`
+- **Replay server URL:** `http://172.20.10.3:8000` · scene `http://172.20.10.3:8000/runs/demo/scene` · WS `ws://172.20.10.3:8000/ws/runs/demo` — run with `cd core && uv run python -m replay` (loops the drifting trajectory continuously; connect anytime)
 - **Hotspot:** SSID/password in team chat only, never here
 - **Contract change requests pending:** none
 - **Timeboxed decisions taken:** see `plans/decisions.md`

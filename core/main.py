@@ -1,11 +1,12 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from scene.layout import compute_scene_graph
 from scene.state import RunState, get_run, put_run
+from ws import ws_endpoint
 
 load_dotenv()
 
@@ -52,3 +53,8 @@ def scene(run_id: str):
     if run is None:
         raise HTTPException(status_code=404, detail=f"no such run: {run_id}")
     return run.to_dict()
+
+
+@app.websocket("/ws/runs/{run_id}")
+async def ws_route(websocket: WebSocket, run_id: str):
+    await ws_endpoint(websocket, run_id)

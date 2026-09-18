@@ -28,10 +28,10 @@
 - [x] Commit `core: handwritten fixture trajectories`.
 
 ## 4. WS hub + replay server (30 min) — **PUBLISH THIS; Web and VR are waiting**
-- [ ] `core/ws.py`: `/ws/runs/{run_id}`; per-run connection set; `broadcast(run_id, msg)`; accept upstream `cursor|select|scrub`, rebroadcast `cursors` at ≤20 Hz and `select`/`scrub` immediately; ignore unknown `t`.
-- [ ] `core/replay.py`: `python -m core.replay --run drifting --speed 4` → loads the jsonl, serves the scene, streams `traj_event` in order with `ts_ms` deltas / speed, updates `agent.node`, `trail`, `drift`; emits `agent_state` and `final`.
-- [ ] Verify with `websocat ws://localhost:8000/ws/runs/demo` — events appear.
-- [ ] Post in team chat: "replay server up: `uv run python -m core.replay`, scene at `/runs/demo/scene`, WS at `/ws/runs/demo`". Commit `core: ws hub + replay`.
+- [x] `core/ws.py`: `/ws/runs/{run_id}`; per-run connection set; `broadcast(run_id, msg)`; accept upstream `cursor|select|scrub`, rebroadcast `cursors` at ≤20 Hz and `select`/`scrub` immediately; ignore unknown `t`.
+- [x] `core/replay.py`: loads the jsonl, serves the scene, streams `traj_event` in order with `ts_ms` deltas / speed, updates `agent.node`, `trail`, `drift`; emits `agent_state` and `final`. Loops continuously so a client connecting at any time sees the demo within one cycle. Runs as `cd core && uv run python -m replay --run drifting --speed 4` (flat package layout — `python -m core.replay` from repo root does not resolve; see decision log).
+- [x] Verified with a `websockets` python client instead of `websocat` (not installed) — events appear in order, `select`/`scrub` rebroadcast immediately, `cursor` aggregates into `cursors`, unknown `t` ignored.
+- [x] Posted team-chat message and LAN URL under STATUS.md → Shared. Commit `core: ws hub + replay`.
 
 ## 5. Sandbox image (45 min, timebox — see §8 fallback)
 - [ ] `sandbox/Dockerfile` (python:3.11-slim, `/app`, installs `requirements.txt` + `polygraph_shim/`).
