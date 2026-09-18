@@ -6,8 +6,6 @@ from urllib.parse import urlparse
 
 import httpx
 
-INTENT_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "repo_schemes" / "SPATIAL_SOC.md"
-SANDBOX_NETWORK = "spatial-soc-sandbox-net"
 ALLOWED_CMD_PREFIXES = ("pytest",)
 
 TOOLS = [
@@ -74,10 +72,12 @@ TOOLS = [
 ]
 
 
-def load_system_prompt() -> str:
+def load_system_prompt(workdir: Path) -> str:
+    """Intent travels with the run's own workdir (MVP.md §6: POST /runs {repo, intent})."""
+    intent_path = workdir / "SPATIAL_SOC.md"
     lines = [
         line
-        for line in INTENT_PATH.read_text().splitlines()
+        for line in intent_path.read_text().splitlines()
         if line.strip() and not line.startswith("#")
     ]
     return "\n".join(lines).strip()
@@ -125,11 +125,14 @@ def _run_cmd_subprocess(workdir: Path, cmd: str) -> tuple[int, str]:
 
 
 def _run_cmd_docker(workdir: Path, cmd: str) -> tuple[int, str]:
+    # Deliberately NOT on SANDBOX_NETWORK: that network is internal (item 5's
+    # exploit-probe isolation) and has no route to PyPI, so `pip install` here
+    # would silently fail. The agent's own dev-loop test runs aren't adversarial
+    # -- they just need container/filesystem isolation, not network isolation.
     full_cmd = f"pip install -q -r requirements.txt pytest 2>/dev/null; {_normalize_cmd(cmd, 'python')}"
     result = subprocess.run(
         [
             "docker", "run", "--rm",
-            "--network", SANDBOX_NETWORK,
             "-v", f"{workdir}:/app",
             "-w", "/app",
             "python:3.11-slim", "bash", "-c", full_cmd,
