@@ -7,10 +7,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Core (person 1)
 - **Gate:** H4 in progress
-- **Done:** items 0–5 of `plans/core-H4.md` — bootstrap, fixture repo, scene layout + snapshot, handwritten trajectories, WS hub + replay server, sandbox image. **Web and VR are unblocked** (replay server up). Sandbox verified live: `spatial-soc-sandbox-net` isolates the container (honeypot-fallback reachable, `8.8.8.8` refused), exploit-probe sink detection correctly flags the vulnerable `cur.execute(...)` call and not the parameterized ones, chaos mode wired.
-- **In progress:** item 6 — agent harness (needs `OPENAI_API_KEY`)
-- **Blocked / manual pending:** `OPENAI_API_KEY`/`OPENAI_MODEL` needed in `.env` before item 6 can actually call the LLM (item 6's `USE_LLM=false` replay path doesn't need it)
-- **Next:** `plans/core-H4.md` item 6 (harness), then 7 (record real runs)
+- **Done:** items 0–6 of `plans/core-H4.md` — bootstrap, fixture repo, scene layout + snapshot, handwritten trajectories, WS hub + replay server, sandbox image, agent harness. **Web and VR are unblocked** (replay server up). Harness verified live end-to-end via `POST /runs` (canned `USE_LLM=false` mode): trajectory recorded, `GET /runs/{id}/scene` reflects it, pause/resume/kill all work. `core/tests` green (3 tests, incl. new `test_harness_loop.py`).
+- **In progress:** item 7 — record the real runs (blocked on `OPENAI_API_KEY`)
+- **Blocked / manual pending:** `OPENAI_API_KEY` + `OPENAI_MODEL` needed in `.env` to record real GPT runs. `.env` already exists locally (copied from `.env.example`, gitignored) with everything else — just needs the key pasted into it directly (not into chat). Also flagging: an unrelated process on this machine (`uvicorn app.main:app`, PID 82061 at last check) already holds port 8000, which core/replay also default to — worth freeing that port or telling me to pick a different one before a public demo run.
+- **Next:** `plans/core-H4.md` item 7 (record real runs) once the key is in `.env`
 - **For Web:** —
 - **For VR:** —
 

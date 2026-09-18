@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.141.1",
+    "httpx>=0.28.1",
     "networkx>=3.6.1",
     "numpy>=2.4.6",
     "openai>=3.14.1",
@@ -16,8 +17,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
     "websockets>=17.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

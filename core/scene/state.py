@@ -25,6 +25,19 @@ class RunState:
         }
 
 
+def apply_event(state: RunState, event: dict) -> None:
+    """Shared by the replay server and the live harness recorder so a scene GET
+    reflects the same trail/agent state that traj_event broadcasts carry."""
+    if event["kind"] in ("read", "write", "cmd", "http", "exec"):
+        state.trail.append({"seq": event["seq"], "node": event.get("node"), "kind": event["kind"]})
+    if "node" in event:
+        state.agent["node"] = event["node"]
+    if "drift" in event:
+        state.agent["drift"] = event["drift"]["score"]
+    if event["kind"] == "done":
+        state.agent["state"] = "done"
+
+
 RUNS: dict[str, RunState] = {}
 
 

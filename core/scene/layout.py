@@ -21,7 +21,11 @@ def _module_id(path: Path) -> str:
 
 def _is_in_scope(module_id: str) -> bool:
     path_form = module_id.replace(".", "/")
-    return any(fnmatch.fnmatch(path_form, glob) for glob in SCOPE_GLOBS)
+    for glob in SCOPE_GLOBS:
+        base = glob.removesuffix("/**")
+        if path_form == base or fnmatch.fnmatch(path_form, glob):
+            return True
+    return False
 
 
 def _imported_targets(tree: ast.Module) -> set[str]:

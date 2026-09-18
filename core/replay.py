@@ -6,7 +6,7 @@ from pathlib import Path
 import uvicorn
 
 from main import app
-from scene.state import get_run
+from scene.state import apply_event, get_run
 from ws import broadcast
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "runs"
@@ -28,16 +28,10 @@ async def _stream_once(events: list[dict], state, speed: float) -> None:
         prev_ts_ms = event["ts_ms"]
         await asyncio.sleep(delay_s)
 
-        if event["kind"] in ("read", "write", "cmd", "http", "exec"):
-            state.trail.append({"seq": event["seq"], "node": event["node"], "kind": event["kind"]})
-        state.agent["node"] = event["node"]
-        if "drift" in event:
-            state.agent["drift"] = event["drift"]["score"]
-
+        apply_event(state, event)
         await broadcast(DEMO_RUN_ID, {"t": "traj_event", "event": event})
 
         if event["kind"] == "done":
-            state.agent["state"] = "done"
             await broadcast(DEMO_RUN_ID, {"t": "agent_state", "state": "done", "reason": None})
             await broadcast(DEMO_RUN_ID, {"t": "final", "state": "merged"})
 
