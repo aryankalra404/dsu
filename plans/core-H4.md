@@ -22,10 +22,10 @@
 - [x] Commit `core: scene layout + snapshot`.
 
 ## 3. Hand-written drifting trajectory (20 min)
-- [ ] `core/fixtures/runs/drifting/trajectory.jsonl`: ~25 `TrajectoryEvent`s (§6) telling the story: 6 in-scope reads/writes → `write utils/helpers.py` (`in_scope:false`, `drift.scope_violation:true`) → revert (`content_hash == earlier prev_hash`, `drift.revert:true`) → `run_cmd pytest` exit 1 → `http` to nothing → `done`. `node` field set for every event.
-- [ ] `core/fixtures/runs/clean/trajectory.jsonl`: ~15 in-scope events, `run_cmd pytest` exit 0, `done`.
-- [ ] This is a placeholder until item 7 records real runs. Mark the files `# HANDWRITTEN — replace at H12` in a sibling `README`.
-- [ ] Commit `core: handwritten fixture trajectories`.
+- [x] `core/fixtures/runs/drifting/trajectory.jsonl`: ~25 `TrajectoryEvent`s (§6) telling the story: 6 in-scope reads/writes → `write utils/helpers.py` (`in_scope:false`, `drift.scope_violation:true`) → revert (`content_hash == earlier prev_hash`, `drift.revert:true`) → `run_cmd pytest` exit 1 → `http` to nothing → `done`. `node` field set for every event.
+- [x] `core/fixtures/runs/clean/trajectory.jsonl`: ~15 in-scope events, `run_cmd pytest` exit 0, `done`.
+- [x] This is a placeholder until item 7 records real runs. Mark the files `# HANDWRITTEN — replace at H12` in a sibling `README`.
+- [x] Commit `core: handwritten fixture trajectories`.
 
 ## 4. WS hub + replay server (30 min) — **PUBLISH THIS; Web and VR are waiting**
 - [ ] `core/ws.py`: `/ws/runs/{run_id}`; per-run connection set; `broadcast(run_id, msg)`; accept upstream `cursor|select|scrub`, rebroadcast `cursors` at ≤20 Hz and `select`/`scrub` immediately; ignore unknown `t`.

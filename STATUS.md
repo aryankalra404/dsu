@@ -7,10 +7,10 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Core (person 1)
 - **Gate:** H4 in progress
-- **Done:** item 0 bootstrap (`core: bootstrap`); item 1 fixture repo (`core: fixture repo`); item 2 scene layout + snapshot — `core/scene/layout.py` (ast import graph + spring_layout), `core/scene/state.py` (RunState), `GET /runs/{id}/scene` wired, `/runs/demo/scene` verified 200 with no LLM/Docker (`core: scene layout + snapshot`)
-- **In progress:** item 3 — hand-written drifting trajectory
+- **Done:** item 0 bootstrap (`core: bootstrap`); item 1 fixture repo (`core: fixture repo`); item 2 scene layout + snapshot (`core: scene layout + snapshot`); item 3 handwritten trajectories — 25-event `drifting/trajectory.jsonl` (scope violation → revert → failing tests → dead-end http → done) and 15-event `clean/trajectory.jsonl`, marked HANDWRITTEN in sibling README (`core: handwritten fixture trajectories`)
+- **In progress:** item 4 — WS hub + replay server (unblocks Web/VR)
 - **Blocked / manual pending:** Docker Desktop confirmed running; `OPENAI_API_KEY`/`OPENAI_MODEL` still needed in `.env` before item 6
-- **Next:** `plans/core-H4.md` items 3–4, publish replay server, post URL in team chat
+- **Next:** `plans/core-H4.md` item 4, publish replay server, post URL in team chat
 - **For Web:** —
 - **For VR:** —
 
