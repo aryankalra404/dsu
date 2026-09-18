@@ -7,10 +7,11 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 
 ## Core (person 1)
 - **Gate:** H4 in progress
-- **Done:** items 0–6 of `plans/core-H4.md` — bootstrap, fixture repo, scene layout + snapshot, handwritten trajectories, WS hub + replay server, sandbox image, agent harness. **Web and VR are unblocked** (replay server up). Harness verified live end-to-end via `POST /runs` (canned `USE_LLM=false` mode): trajectory recorded, `GET /runs/{id}/scene` reflects it, pause/resume/kill all work. `core/tests` green (3 tests, incl. new `test_harness_loop.py`).
-- **In progress:** item 7 — record the real runs (blocked on `OPENAI_API_KEY`)
-- **Blocked / manual pending:** `OPENAI_API_KEY` + `OPENAI_MODEL` needed in `.env` to record real GPT runs. `.env` already exists locally (copied from `.env.example`, gitignored) with everything else — just needs the key pasted into it directly (not into chat). Also flagging: an unrelated process on this machine (`uvicorn app.main:app`, PID 82061 at last check) already holds port 8000, which core/replay also default to — worth freeing that port or telling me to pick a different one before a public demo run.
-- **Next:** `plans/core-H4.md` item 7 (record real runs) once the key is in `.env`
+- **Gate:** H4 items 0–7 all done
+- **Done:** all of `plans/core-H4.md`. Fixtures under `core/fixtures/runs/` are now **real recorded GPT-5.5 runs** (clean + drifting), not handwritten — the drifting one genuinely drifted on the first attempt (wrote `app.py`, `db.py`, `utils/helpers.py`, feature landed at `features/scheme_finder.py`; drift 46.67). `USE_LLM=false` replays those transcripts for real. Sandbox isolated + verified (honeypot reachable, `8.8.8.8` refused; SQLi probe hits the unparameterised `cur.execute` with `arg_has_payload`). Replay server verified against the real trajectory. `core/tests` green (6 tests).
+- **In progress:** —
+- **Blocked / manual pending:** **Port 8000 is taken** by an unrelated process on this laptop (`uvicorn app.main:app`) — core and the replay server both default to it. Free it or we pick another port before the demo. `OPENAI_API_KEY` is in `.env` (gitignored); it was pasted into a chat transcript, so **rotate it** when convenient. `honeypot-fallback` must be up for `http_get` (`docker compose up -d honeypot-fallback`, published on host **9000**).
+- **Next:** H12 per MVP.md §13 — five checks against these recorded runs, pause-on-scope-violation through n8n. The drifting fixture has a scope violation but **no revert**, so the `no_churn` revert rule will need a different source or a second recording.
 - **For Web:** —
 - **For VR:** —
 
