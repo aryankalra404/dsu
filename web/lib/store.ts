@@ -29,6 +29,7 @@ export interface Agent {
 export interface RunState {
   runId: string | null;
   source: Source;
+  fallback: boolean; // true when Core was requested but unreachable and the local fixture took over
   sceneStatus: LoadStatus;
   sceneError: string | null;
   wsStatus: WsStatus;
@@ -52,6 +53,7 @@ export interface RunState {
 
 export interface RunActions {
   reset: (runId: string, source: Source) => void;
+  setSource: (source: Source, fallback: boolean) => void;
   setSceneStatus: (status: LoadStatus, error?: string) => void;
   setWsStatus: (status: WsStatus) => void;
   setScene: (scene: SceneSnapshot) => void;
@@ -65,6 +67,7 @@ const initialAgent: Agent = { node: null, state: "running", reason: null, drift:
 const initial: RunState = {
   runId: null,
   source: "core",
+  fallback: false,
   sceneStatus: "idle",
   sceneError: null,
   wsStatus: "idle",
@@ -116,6 +119,8 @@ export const useRunStore = create<RunState & RunActions>()((set, get) => ({
   ...initial,
 
   reset: (runId, source) => set({ ...initial, runId, source }),
+
+  setSource: (source, fallback) => set({ source, fallback }),
 
   setSceneStatus: (sceneStatus, sceneError) => set({ sceneStatus, sceneError: sceneError ?? null }),
 

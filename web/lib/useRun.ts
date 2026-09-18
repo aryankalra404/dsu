@@ -17,9 +17,22 @@ export function useRun(runId: string, source: Source) {
     let cancelled = false;
     let stopLocal: (() => void) | null = null;
 
+    let effective = source;
     (async () => {
       try {
-        const scene = source === "local" ? await loadLocalScene() : await getScene(runId);
+        let scene;
+        if (source === "local") scene = await loadLocalScene();
+        else {
+          try {
+            scene = await getScene(runId);
+          } catch (coreErr) {
+            // Core unreachable → local fixture, announced in the header (CLAUDE.md: stubs say so).
+            console.warn("core unreachable, falling back to local fixture:", coreErr);
+            effective = "local";
+            useRunStore.getState().setSource("local", true);
+            scene = await loadLocalScene();
+          }
+        }
         if (cancelled) return;
         useRunStore.getState().setScene(scene);
       } catch (err) {
@@ -28,7 +41,7 @@ export function useRun(runId: string, source: Source) {
         return;
       }
 
-      if (source === "local") {
+      if (effective === "local") {
         const events = await loadLocalEvents();
         if (cancelled) return;
         useRunStore.getState().setWsStatus("open");

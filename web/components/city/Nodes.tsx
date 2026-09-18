@@ -61,10 +61,11 @@ function NodeGroup({
       <meshStandardMaterial
         color={inScope ? color.nodeScope : color.nodeDim}
         emissive={inScope ? new Color(color.nodeScope) : new Color(color.nodeDim)}
-        emissiveIntensity={inScope ? 0.35 : 0}
+        emissiveIntensity={inScope ? 0.45 : 0.15}
         transparent
         opacity={inScope ? alpha.nodeScope : alpha.nodeDim}
         depthWrite={inScope}
+        toneMapped={false}
       />
     </instancedMesh>
   );
@@ -80,6 +81,14 @@ export function Nodes() {
   const scopeNodes = useMemo(() => scene?.graph.nodes.filter((n) => n.in_scope) ?? [], [scene]);
   const dimNodes = useMemo(() => scene?.graph.nodes.filter((n) => !n.in_scope) ?? [], [scene]);
   const selectedNode = useMemo(() => scene?.graph.nodes.find((n) => n.id === selected) ?? null, [scene, selected]);
+  const agentNodeId = useRunStore((s) => s.agent.node);
+  // DESIGN.md → Atmosphere → Labels: scope nodes and the agent's current node always labelled.
+  const labelled = useMemo(() => {
+    if (!scene) return [] as SceneNode[];
+    const ids = new Set<string>(scene.scope_nodes);
+    if (agentNodeId) ids.add(agentNodeId);
+    return scene.graph.nodes.filter((n) => ids.has(n.id));
+  }, [scene, agentNodeId]);
 
   if (!scene) return null;
   const onSelect = (n: SceneNode) => setSelected(selected === n.id ? null : n.id);
@@ -88,7 +97,17 @@ export function Nodes() {
     <group>
       <NodeGroup nodes={scopeNodes} fanIn={fanIn} inScope onHover={setHovered} onSelect={onSelect} />
       <NodeGroup nodes={dimNodes} fanIn={fanIn} inScope={false} onHover={setHovered} onSelect={onSelect} />
-      {hovered && (
+      {labelled.map((n) => (
+        <Html key={n.id} position={n.pos} center distanceFactor={1.2} zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+          <div
+            className="translate-y-3 font-mono text-[11px] whitespace-nowrap"
+            style={{ color: color.text, opacity: alpha.label, textShadow: `0 0 6px ${color.bg}` }}
+          >
+            {n.label}
+          </div>
+        </Html>
+      ))}
+      {hovered && !labelled.some((n) => n.id === hovered.id) && (
         <Html position={hovered.pos} center distanceFactor={1} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
           <div className="rounded border border-border bg-background/90 px-1.5 py-0.5 font-mono text-[11px] whitespace-nowrap text-soc-text">
             {hovered.label} <span className="text-muted-foreground">{hovered.id}</span>

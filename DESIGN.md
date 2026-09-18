@@ -7,9 +7,9 @@ Frozen at H12. After that only bug fixes.
 | Token | Hex | Used for |
 |---|---|---|
 | `bg` | `#0B0F14` | web page background; VR: not used (passthrough) |
-| `node-dim` | `#3A4250` @ 10 % alpha | out-of-scope nodes and edges |
+| `node-dim` | `#3A4250` @ 35 % alpha | out-of-scope nodes (10 % was invisible on the projector; raised 18 Sep) |
 | `node-scope` | `#9FB3C8` @ 85 % alpha | in-scope nodes |
-| `edge-dim` | `#2A313C` @ 25 % alpha | all edges by default |
+| `edge-dim` | `#2A313C` @ 45 % alpha | all edges by default, and the floor grid |
 | `accent` | `#39D0FF` | the agent dot, live highlights, "lit" claim satellites, selected ring, scope district glow |
 | `danger` | `#FF3B5C` | out-of-scope trail segments, FAKE / DEAD / DRIFT / VULN, paused state |
 | `ok` | `#3DFF9A` | REAL verdicts, applied/merged state, in-scope trail after approval |
@@ -18,6 +18,14 @@ Frozen at H12. After that only bug fixes.
 | `text` | `#E6EDF3` | labels |
 
 No other colours. No gradients except the district glow. No rainbow.
+
+## Atmosphere (both clients)
+- **Bloom** on emissive materials only: threshold 0.55, intensity 0.9, radius 0.6. Bloom is what makes `accent` and `danger` read as light. Dim nodes must stay below the threshold.
+- **Fog** in `bg` from 1.2 m to 3.5 m (web). VR: none (passthrough).
+- **Floor grid**: `edge-dim`, 5 cm cells, 25 cm sections, fading out at 1.6 m, at y = −0.4 m (the bottom of the cube). Web only; in VR the real table is the floor.
+- **Labels**: scope nodes and the agent's current node always show a small mono label (`text` @ 70 %, 11 px). Other nodes label on hover only.
+- **Idle orbit** (web only): the camera orbits slowly (one revolution per ~90 s) until the user touches the canvas, then never again for that session. VR: the user moves.
+- **Auto-frame**: on scene load the web camera frames the node bounding box once; no other automatic camera moves except `F`.
 
 ## Geometry (metres in VR; web scales the same 0.8 m cube to the canvas)
 - City bounding cube: **0.8 m**, origin at table centre, Y up.
@@ -40,7 +48,7 @@ No other colours. No gradients except the district glow. No rainbow.
 | killed | `danger`, fades out | "Killed" `danger` | — |
 | merged / rejected | dot hidden; trail `ok` / stays `danger` | "Merged" `ok` / "Rejected" `danger` | — |
 
-Drift meter: 0–100 bar, `accent` → `warn` above 40 → `danger` above 70, four component chips labelled exactly: `scope`, `revert`, `churn`, `advisory`. Chip states from `drift`: `scope` and `revert` are booleans — `danger` fill when true, `node-dim` when false, no number; `churn` shows the integer, `warn` when > 0 else `node-dim`; `advisory` shows one decimal (`0.2`), `warn` when > 0 else `node-dim`. Before the first event all four are `node-dim` and the bar is empty.
+Drift meter: 0–100 bar, `accent` → `warn` above 40 → `danger` above 70, four component chips labelled exactly: `scope`, `revert`, `churn`, `advisory`. Boolean chips (`scope`, `revert`) are `danger` when true and `node-dim` when false; `churn` shows the count (`warn` when > 0); `advisory` shows one decimal (`warn` when > 0). Chip states from `drift`: `scope` and `revert` are booleans — `danger` fill when true, `node-dim` when false, no number; `churn` shows the integer, `warn` when > 0 else `node-dim`; `advisory` shows one decimal (`0.2`), `warn` when > 0 else `node-dim`. Before the first event all four are `node-dim` and the bar is empty.
 Verdict badges, exact text: `REAL` (`ok`), `FAKE` (`danger`), `DEAD` (`danger`), `DRIFT` (`danger`), `VULN` (`danger`), `INCONCLUSIVE` (`warn`), `PENDING` (`node-scope`).
 Gate labels, exact text: `Confirm claims` · `Continue` · `Steer` · `Kill` · `Approve` · `Reject`. VR palm menu uses the same words in the same order.
 

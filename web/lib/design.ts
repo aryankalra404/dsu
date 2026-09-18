@@ -15,9 +15,10 @@ export const color = {
 } as const;
 
 export const alpha = {
-  nodeDim: 0.1,
+  nodeDim: 0.35,
   nodeScope: 0.85,
-  edgeDim: 0.25,
+  edgeDim: 0.45,
+  label: 0.7,
   ghost: 0.2,
   districtFill: 0.06,
   districtEdge: 0.35,
@@ -39,6 +40,20 @@ export const geom = {
 } as const;
 
 // Milliseconds.
+// DESIGN.md → Atmosphere (web).
+export const atmosphere = {
+  bloomThreshold: 0.55,
+  bloomIntensity: 0.9,
+  bloomRadius: 0.6,
+  fogNear: 1.2,
+  fogFar: 3.5,
+  gridCell: 0.05,
+  gridSection: 0.25,
+  gridFade: 1.6,
+  gridY: -0.4,
+  idleOrbitSecondsPerRev: 90,
+} as const;
+
 export const motion = {
   dotMove: 400,
   trailDraw: 400,

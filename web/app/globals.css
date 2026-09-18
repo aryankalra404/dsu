@@ -139,3 +139,10 @@
     @apply font-sans;
   }
 }
+/* Timeline scrubber (DESIGN.md → Motion → Scrub). Colour comes from --soc-range-color. */
+.soc-range { -webkit-appearance: none; appearance: none; height: 14px; background: transparent; cursor: pointer; }
+.soc-range::-webkit-slider-runnable-track { height: 2px; background: color-mix(in srgb, var(--color-soc-node-dim) 50%, transparent); border-radius: 999px; }
+.soc-range::-moz-range-track { height: 2px; background: color-mix(in srgb, var(--color-soc-node-dim) 50%, transparent); border-radius: 999px; }
+.soc-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -5px; height: 12px; width: 12px; border-radius: 999px; background: var(--soc-range-color); box-shadow: 0 0 10px var(--soc-range-color); }
+.soc-range::-moz-range-thumb { height: 12px; width: 12px; border: 0; border-radius: 999px; background: var(--soc-range-color); box-shadow: 0 0 10px var(--soc-range-color); }
+.soc-range:disabled { opacity: 0.4; cursor: default; }

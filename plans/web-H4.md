@@ -34,15 +34,15 @@
 - [x] Commit `web: city renders + dot moves`.
 
 ## 4. Chrome around the canvas (45 min)
-- [ ] `/runs/[id]` three-column layout: left claims list (static from `scene.claims`, type badge, verdict badge placeholder), centre city, right tabs `Evidence | Patch | Gate` (empty states for now).
-- [ ] `DriftMeter.tsx` above the city: 0–100 bar with four component chips (scope, revert, churn, advisory) from the latest event's `drift`.
-- [ ] `Timeline.tsx` under the canvas: `seq` slider; dragging sets `scrubSeq` and sends `{"t":"scrub","seq"}`; when a `scrub` arrives from another client, follow it; "Live" button clears.
-- [ ] Agent state pill: running / paused / done / killed with reason.
-- [ ] Commit `web: run page chrome`.
+- [x] `/runs/[id]` three-column layout: left claims list (static from `scene.claims`, type badge, verdict badge placeholder), centre city, right tabs `Evidence | Patch | Gate` (empty states for now).
+- [x] `DriftMeter.tsx` above the city: 0–100 bar with four component chips (scope, revert, churn, advisory) from the latest event's `drift`.
+- [x] `Timeline.tsx` under the canvas: `seq` slider; dragging sets `scrubSeq` and sends `{"t":"scrub","seq"}`; when a `scrub` arrives from another client, follow it; "Live" button clears.
+- [x] Agent state pill: running / paused / done / killed with reason.
+- [x] Commit `web: run page chrome`.
 
-## 5. Point at the real replay server (10 min)
-- [ ] Remove `?replay=local` default; hit Core's `/runs/demo/scene` + `/ws/runs/demo`. Fix any contract mismatch by raising it, not by patching around it.
-- [ ] `pnpm typecheck && pnpm build` green. Commit `web: wired to core replay`.
+## 5. Point at the real replay server (10 min) — done; Core falls back to the local fixture with a visible badge when unreachable
+- [x] Remove `?replay=local` default; hit Core's `/runs/demo/scene` + `/ws/runs/demo`. Fix any contract mismatch by raising it, not by patching around it.
+- [x] `pnpm typecheck && pnpm build` green. Commit `web: wired to core replay`.
 
 ## Acceptance for H4
 - Open `/runs/demo` with Core's replay running: city visible, scope glows, dot walks the trail, trail turns red when it leaves scope, drift meter climbs, timeline scrubs.
