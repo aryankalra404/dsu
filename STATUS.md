@@ -20,7 +20,15 @@ Times in IST. Hackathon clock: H0 = 18 Sep 10:30.
 - **In progress:** — (web 0–3 done; switching to VR 0–3 per the agreed order)
 - **Blocked / manual pending:** —
 - **Next:** after VR 0–3: web item 4 chrome (claims list, drift meter, timeline, state pill), item 5 point at Core replay when the URL is in Shared
-- **For Core:** snapshot `trail[]` items now carry `in_scope` + `revert` (§6, committed 18 Sep) — the replay server's `GET /runs/demo/scene` should emit them, copied from the matching TrajectoryEvent.
+- **For Core:** snapshot `trail[]` items now carry `in_scope` + `revert` (§6, committed 18 Sep) — the replay server's `GET /runs/demo/scene` should emit them, copied from the matching TrajectoryEvent. **Still missing as of 18 Sep 02:xx** (verified: items are `{seq,node,kind}`).
+- **For Core — fixture/replay fixes needed before H12 (verified by running `python -m replay` on laptop 2):**
+  1. **Scope globs → `features/**` and `tests/**`.** The recorded drifting run wrote `features/scheme_finder.py` (the actual feature) but scope was `/features/schemes/**`, so *every* write is `in_scope=False`, the district is empty, and the trail is red from seq 7. With the wider scope, seqs 7/8/12/21/23 are in scope and the first violation is **seq 10 (`write app.py`)**, then 11 (`utils/helpers.py`), 18, 19 — a much better story: starts right, then rewrites app/utils/db. `in_scope` is computed at replay time, so **no re-recording**; just recompute and rewrite the jsonl (or compute on load). Document that scope is the human-confirmed glob list at HITL #1 (the human widened it from the intent's literal path).
+  2. **`scope_nodes` is `[]`** — must resolve to `features`, `features.scheme_finder`, `tests.test_app` under the new globs.
+  3. **Graph must include nodes the agent creates.** `features.scheme_finder` isn't in `graph.nodes` because layout ran on the pre-run repo. Build the graph from the repo AST **∪ every `node` referenced in the trajectory** (place new nodes near their package's centroid), so the dot always has somewhere to go.
+  4. **The fixture repo is 5 files → a 4-node city.** Add ~12–15 inert but plausible modules (e.g. `api/routes.py`, `api/auth.py`, `models/user.py`, `models/scheme.py`, `services/eligibility.py`, `services/notify.py`, `config.py`, `utils/text.py`, `utils/dates.py`, `tests/test_db.py`, `tests/test_utils.py`) with real imports between them so `spring_layout` produces a city with clusters. They don't need to do anything. Keep the recorded run valid: don't rename existing files.
+  5. Trail items: add `in_scope` and `revert` (item above).
+  6. Optional: the `no_churn` revert rule has nothing to fire on in this run. Either record a second short run nudged into a revert, or accept revert as hand-written-only and say so in `plans/decisions.md`.
+  After 1–5: restart replay, `curl /runs/demo/scene` should show ≥15 nodes, non-empty `scope_nodes`, trail items with `in_scope`. Then ping laptop 2 for the H4 sync check.
 - **For VR:** —
 
 ## VR (person 2 — after the web target; person 3 builds/tests on device)
