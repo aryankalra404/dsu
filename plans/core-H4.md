@@ -16,10 +16,10 @@
 - [x] Commit `core: fixture repo`.
 
 ## 2. Static scene + layout (25 min)
-- [ ] `core/scene/layout.py`: walk `repo_schemes` with `ast`, build import/call graph in `networkx`, `spring_layout(dim=3, seed=7)`, scale to 0.8 m cube, lift scope nodes +0.1 m, emit `graph.nodes[].pos`, `edges`, `in_scope`.
-- [ ] `core/scene/state.py`: in-memory `RunState` = MVP.md §6 scene snapshot (`graph`, `scope_nodes`, `agent`, `trail`, `claims`, `gate`, `iteration`, `cursors`).
-- [ ] `GET /runs/{id}/scene` returns it. `GET /runs/demo/scene` works with no LLM, no Docker.
-- [ ] Commit `core: scene layout + snapshot`.
+- [x] `core/scene/layout.py`: walk `repo_schemes` with `ast`, build import/call graph in `networkx`, `spring_layout(dim=3, seed=7)`, scale to 0.8 m cube, lift scope nodes +0.1 m, emit `graph.nodes[].pos`, `edges`, `in_scope`.
+- [x] `core/scene/state.py`: in-memory `RunState` = MVP.md §6 scene snapshot (`graph`, `scope_nodes`, `agent`, `trail`, `claims`, `gate`, `iteration`, `cursors`).
+- [x] `GET /runs/{id}/scene` returns it. `GET /runs/demo/scene` works with no LLM, no Docker.
+- [x] Commit `core: scene layout + snapshot`.
 
 ## 3. Hand-written drifting trajectory (20 min)
 - [ ] `core/fixtures/runs/drifting/trajectory.jsonl`: ~25 `TrajectoryEvent`s (§6) telling the story: 6 in-scope reads/writes → `write utils/helpers.py` (`in_scope:false`, `drift.scope_violation:true`) → revert (`content_hash == earlier prev_hash`, `drift.revert:true`) → `run_cmd pytest` exit 1 → `http` to nothing → `done`. `node` field set for every event.
